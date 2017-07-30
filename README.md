@@ -10,6 +10,24 @@ Async::Trampoline - Trampolining functions with async/await syntax
 
 TODO
 
+## await
+
+    @result = await $async
+
+TODO
+
+## async
+
+    $async = async $dependency => sub { ... }
+
+TODO
+
+## async\_value
+
+    $async = async_value @values
+
+TODO
+
 # AUTHOR
 
 amon - Lukas Atkinson (cpan: AMON) <amon@cpan.org>
