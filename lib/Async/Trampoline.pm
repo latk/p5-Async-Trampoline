@@ -25,11 +25,17 @@ $VERSION = eval $VERSION;
 
 use Exporter 'import';
 
-our @EXPORT_OK = qw(
-    await
-    async
-    async_value
+our %EXPORT_TAGS = (
+    all => [qw/
+        await
+        async
+        async_value
+        async_cancel
+        async_else
+    /],
 );
+
+our @EXPORT_OK = @{ $EXPORT_TAGS{all} };
 
 use Async::Trampoline::Scheduler;
 
@@ -64,6 +70,11 @@ sub await {
             next TASK;
         }
 
+        if ($type eq 'cancel') {
+            $scheduler->complete($top);
+            next TASK;
+        }
+
         if ($type eq 'thunk') {
             my ($dep, $body) = @args;
 
@@ -73,6 +84,29 @@ sub await {
             }
 
             _unify($top, $body->(@$dep[1 ... $#$dep]));
+            $scheduler->enqueue($top);
+            next TASK;
+        }
+
+        if ($type eq 'else') {
+            if (not @args) {
+                die "async_else found no values";
+            }
+
+            my ($dep, @rest) = @args;
+
+            if ($dep->[0] eq 'cancel') {
+                @$top = (else => @rest);
+                $scheduler->enqueue($top);
+                next TASK;
+            }
+
+            if (not $async_is_ready->($dep)) {
+                $scheduler->enqueue($dep => $top);
+                next TASK;
+            }
+
+            _unify($top, $dep);
             $scheduler->enqueue($top);
             next TASK;
         }
@@ -118,6 +152,30 @@ TODO
 
 sub async_value(@) {
     return bless [value => @_] => __PACKAGE__;
+}
+
+=head2 async_cancel
+
+    $async = async_cancel
+
+TODO
+
+=cut
+
+sub async_cancel() {
+    return bless [cancel => ()] => __PACKAGE__;
+}
+
+=head2 async_else
+
+    $async = async_else @choices
+
+TODO
+
+=cut
+
+sub async_else(@) {
+    return bless [else => @_] => __PACKAGE__;
 }
 
 1;

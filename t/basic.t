@@ -10,11 +10,7 @@ use lib "$FindBin::Bin/lib";
 use Async::Trampoline::Describe qw(describe it);
 use Test::More;
 
-use Async::Trampoline qw(
-    await
-    async
-    async_value
-);
+use Async::Trampoline ':all';
 
 describe q(Async::Trampoline) => sub {
     ok 1;  # TODO write actual tests
@@ -62,6 +58,24 @@ describe q(monad laws) => sub {
 
         is await($m_bind_f_bind_g), await($m_bind_x_f_x_bind_g);
         is await($m_bind_f_bind_g), "g(f($id))";
+    };
+};
+
+describe q(async_else) => sub {
+    it q(returns the first value) => sub {
+        my $async = async_else(
+            async_value(42),
+            async_cancel,
+        );
+        is await($async), 42;
+    };
+
+    it q(skips cancelled values) => sub {
+        my $async = async_else(
+            async_cancel,
+            async_value("foo"),
+        );
+        is await($async), "foo";
     };
 };
 

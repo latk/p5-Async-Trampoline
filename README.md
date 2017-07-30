@@ -28,6 +28,18 @@ TODO
 
 TODO
 
+## async\_cancel
+
+    $async = async_cancel
+
+TODO
+
+## async\_else
+
+    $async = async_else @choices
+
+TODO
+
 # AUTHOR
 
 amon - Lukas Atkinson (cpan: AMON) <amon@cpan.org>
