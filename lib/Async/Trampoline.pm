@@ -31,6 +31,8 @@ our @EXPORT_OK = qw(
     async_value
 );
 
+use Async::Trampoline::Scheduler;
+
 ## no critic (ProhibitSubroutinePrototypes)
 
 =head2 await
@@ -44,31 +46,21 @@ TODO
 sub await {
     my ($async) = @_;
 
-    my @runnable;
-
-    my $enqueue = sub {
-        my ($async, $notify) = @_;
-        push @runnable, { async => $async, notify => $notify };
-        return;
-    };
+    my $scheduler = Async::Trampoline::Scheduler->new;
 
     my $async_is_ready = sub {
         my ($async) = @_;
         return $async->[0] eq 'value';
     };
 
-    $enqueue->($async, undef);
+    $scheduler->enqueue($async);
 
     TASK:
-    while (@runnable) {
-        my $top = shift @runnable;
-        my $top_async = $top->{async};
-        my $top_notify = $top->{notify};
-
-        my ($type, @args) = @$top_async;
+    while (my ($top) = $scheduler->dequeue) {
+        my ($type, @args) = @$top;
 
         if ($type eq 'value') {
-            push @runnable, $top_notify if $top_notify;
+            $scheduler->complete($top);
             next TASK;
         }
 
@@ -76,12 +68,12 @@ sub await {
             my ($dep, $body) = @args;
 
             if (not $async_is_ready->($dep)) {
-                $enqueue->($dep, $top);
+                $scheduler->enqueue($dep => $top);
                 next TASK;
             }
 
-            @$top_async = @{ $body->(@$dep[1 .. $#$dep]) };
-            push @runnable, $top;
+            _unify($top, $body->(@$dep[1 ... $#$dep]));
+            $scheduler->enqueue($top);
             next TASK;
         }
 
@@ -95,6 +87,12 @@ sub await {
 
     # uncoverable statement
     die "Async with type $type was not resolved in time";
+}
+
+sub _unify {
+    my ($target, $source) = @_;
+    @$target = @$source;
+    return;
 }
 
 =head2 async
