@@ -9,12 +9,9 @@ use lib "$FindBin::Bin/lib";
 
 use Async::Trampoline::Describe qw(describe it);
 use Test::More;
+use Test::Exception;
 
 use Async::Trampoline ':all';
-
-describe q(Async::Trampoline) => sub {
-    ok 1;  # TODO write actual tests
-};
 
 describe q(monad laws) => sub {
     # async_value $x        =   return x
@@ -76,6 +73,37 @@ describe q(async_else) => sub {
             async_value("foo"),
         );
         is await($async), "foo";
+    };
+
+    it q(can evaluate thunks) => sub {
+        my $async = async_else(
+            deferred { async_cancel },
+            async_value("bar"),
+        );
+        is await($async), "bar";
+    };
+
+    it q(dies if no uncancelled values exist) => sub {
+        my $async = async_else
+            async_cancel,
+            async_cancel;
+
+        throws_ok { await($async) }
+            qr/^async_else:\ found\ no\ values/x;
+    };
+};
+
+sub _loop {
+    my ($items, $i) = @_;
+    return async_value $items if not $i;
+    push @$items, $i--;
+    return deferred { _loop($items, $i) };
+}
+
+describe q(deferred) => sub {
+    it q(can defer function calls) => sub {
+        my $values = await _loop([], 5);
+        is "@$values", "5 4 3 2 1";
     };
 };
 
