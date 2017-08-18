@@ -83,6 +83,8 @@ our %EXPORT_TAGS = (
 
 our @EXPORT_OK = @{ $EXPORT_TAGS{all} };
 
+use constant DEBUG => $ENV{ASYNC_TRAMPOLINE_DEBUG};
+
 use Async::Trampoline::Scheduler;
 
 ## no critic (ProhibitSubroutinePrototypes)
@@ -111,6 +113,8 @@ sub await($;) {
 
     TASK:
     while (my ($top) = $scheduler->dequeue) {
+        DEBUG and warn "#DEBUG evaluating $top\n";
+
         my ($type, @args) = @$top;
 
         if ($type eq 'value') {
@@ -168,7 +172,7 @@ sub await($;) {
     return @args[0 .. $#args] if $type eq 'value';
 
     # uncoverable statement
-    die "Async with type $type was not resolved in time";
+    die "Async with type $type was not resolved in time: $async";
 }
 
 sub _unify {
@@ -247,6 +251,18 @@ TODO
 sub async_else(@) {
     return bless [else => @_] => __PACKAGE__;
 }
+
+use overload
+    fallback => 1,
+    q("") => sub {
+        my ($self) = @_;
+
+        require Scalar::Util;
+
+        return sprintf "<Async %s @ 0x%x>",
+            $self->[0],
+            Scalar::Util::refaddr($self);
+    };
 
 1;
 
