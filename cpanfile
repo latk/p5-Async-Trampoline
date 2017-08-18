@@ -1,6 +1,10 @@
 
+on 'build' => sub {
+  requires "Module::Build" => "0.28";
+};
+
 on 'configure' => sub {
-  requires "ExtUtils::MakeMaker" => "0";
+  requires "Module::Build" => "0.28";
 };
 
 on 'develop' => sub {

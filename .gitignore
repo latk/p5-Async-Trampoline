@@ -1,3 +1,8 @@
 /.build/
+/_build/
+/blib/
 /Async-Trampoline-*
 /coverage
+/Build
+/MYMETA.json
+/MYMETA.yml
