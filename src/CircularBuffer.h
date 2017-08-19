@@ -51,6 +51,19 @@
 #define CIRCULAR_BUFFER_SIZE(buffer)                                        \
     ((buffer).size)
 
+/** Enqueue a value, growing the buffer if necessary.
+ *
+ *  ok: bool LVALUE
+ *      true on success, false when growing the buffer failed.
+ *  TValue: TYPE
+ *      Value-Type of the buffer.
+ *  buffer: CircularBuffer<TValue>
+ *      the buffer in which to enqueue.
+ *  value: TValue ONCE
+ *      the value to enqueue. Not evaluated if "ok" is false. Evaluated once if
+ *      "ok" is true.
+ *  returns: void
+ */
 #define CIRCULAR_BUFFER_ENQ(ok, TValue, buffer, value) do {                 \
     (ok) = 1;                                                               \
     if ((buffer).size == (buffer).storage.size) {                           \
