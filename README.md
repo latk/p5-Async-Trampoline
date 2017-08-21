@@ -48,35 +48,35 @@ Async/recursive:
         my ($items, $i) = @_;
         return async_value $items if not $i:
         push @$items, $i--;
-        return deferred { loop($items, $i) };
+        return async { loop($items, $i) };
     }
 
-    await loop_async([], 5);
+    run_until_completion loop_async([], 5);
 
 # FUNCTIONS
 
-## await
+## run\_until\_completion
 
-    @result = await $async
+    @result = run_until_completion $async
 
-    @result = $async->await
-
-TODO
-
-## deferred
-
-    $async = deferred { ... }
+    @result = $async->run_until_completion
 
 TODO
 
 ## async
 
-    $async = async $dependency => sub {
+    $async = async { ... }
+
+TODO
+
+## await
+
+    $async = await $dependency => sub {
         my (@result) = @;
         ...
     };
 
-    $async = $dependency->async(sub {
+    $async = $dependency->await(sub {
         my (@result) = @_;
         ...
     });

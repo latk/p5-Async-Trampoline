@@ -15,7 +15,7 @@ use Async::Trampoline ':all';
 
 describe q(monad laws) => sub {
     # async_value $x        =   return x
-    # async $async => \&f   =   async >>= f
+    # await $async => \&f   =   await >>= f
 
     my $f = sub {
         my ($x) = @_;
@@ -28,33 +28,34 @@ describe q(monad laws) => sub {
     };
 
     it q(satisfies left identity: return a >>= f === f a) => sub {
-        my $return_a_bind_f = async async_value("a") => \&$f;
+        my $return_a_bind_f = await async_value("a") => \&$f;
         my $f_a = $f->("a");
 
-        is await($return_a_bind_f), await($f_a);
-        is await($f_a), 'f(a)';
+        is run_until_completion($return_a_bind_f), run_until_completion($f_a);
+        is run_until_completion($f_a), 'f(a)';
     };
 
     it q(satisfies right identity: m >>= return === m) => sub {
         my $id = [];
         my $m = async_value $id;
-        my $m_bind_return = async $m => \&async_value;
+        my $m_bind_return = await $m => \&async_value;
 
-        is await($m), await($m_bind_return);
-        is await($m), "$id";
+        is run_until_completion($m), run_until_completion($m_bind_return);
+        is run_until_completion($m), "$id";
     };
 
     it q(satisfies associativity: (m >>= f) >>= g === m >>= (x -> f x >>= g)) => sub {
         my $id = [];
         my $m = async_value $id;
-        my $m_bind_f_bind_g = async(async($m => \&$f) => \&$g);
-        my $m_bind_x_f_x_bind_g = async $m => sub {
+        my $m_bind_f_bind_g = await(await($m => \&$f) => \&$g);
+        my $m_bind_x_f_x_bind_g = await $m => sub {
             my ($x) = @_;
-            return async $f->($x) => \&$g;
+            return await $f->($x) => \&$g;
         };
 
-        is await($m_bind_f_bind_g), await($m_bind_x_f_x_bind_g);
-        is await($m_bind_f_bind_g), "g(f($id))";
+        is run_until_completion($m_bind_f_bind_g),
+            run_until_completion($m_bind_x_f_x_bind_g);
+        is run_until_completion($m_bind_f_bind_g), "g(f($id))";
     };
 };
 
@@ -64,7 +65,7 @@ describe q(async_else) => sub {
             async_value(42),
             async_cancel,
         );
-        is await($async), 42;
+        is run_until_completion($async), 42;
     };
 
     it q(skips cancelled values) => sub {
@@ -72,15 +73,15 @@ describe q(async_else) => sub {
             async_cancel,
             async_value("foo"),
         );
-        is await($async), "foo";
+        is run_until_completion($async), "foo";
     };
 
     it q(can evaluate thunks) => sub {
         my $async = async_else(
-            deferred { async_cancel },
+            async { async_cancel },
             async_value("bar"),
         );
-        is await($async), "bar";
+        is run_until_completion($async), "bar";
     };
 
     it q(dies if no uncancelled values exist) => sub {
@@ -88,7 +89,7 @@ describe q(async_else) => sub {
             async_cancel,
             async_cancel;
 
-        throws_ok { await($async) }
+        throws_ok { run_until_completion($async) }
             qr/^async_else:\ found\ no\ values/x;
     };
 };
@@ -97,15 +98,8 @@ sub _loop {
     my ($items, $i) = @_;
     return async_value $items if not $i;
     push @$items, $i--;
-    return deferred { _loop($items, $i) };
+    return async { _loop($items, $i) };
 }
-
-describe q(deferred) => sub {
-    it q(can defer function calls) => sub {
-        my $values = await _loop([], 5);
-        is "@$values", "5 4 3 2 1";
-    };
-};
 
 describe q(Scheduler) => sub {
 
@@ -117,10 +111,10 @@ describe q(Scheduler) => sub {
         $scheduler->enqueue(async_value 0);
         for my $x (@values[1 .. $#values]) {
             $scheduler->enqueue(async_value $x);
-            push @results, await $scheduler->dequeue;
+            push @results, run_until_completion $scheduler->dequeue;
         }
         while (my ($async) = $scheduler->dequeue) {
-            push @results, await $async;
+            push @results, run_until_completion $async;
         }
         is "@results", "@values";
     };
@@ -131,7 +125,7 @@ describe q(Scheduler) => sub {
         $scheduler->enqueue(async_value $_) for @values;
         my @results;
         while (my ($async) = $scheduler->dequeue) {
-            push @results, await $async;
+            push @results, run_until_completion $async;
         }
         is "@results", "@values";
     };
@@ -145,10 +139,10 @@ describe q(Scheduler) => sub {
                 $scheduler->enqueue(async_value $_) for 0 .. $round - 1;
                 for my $x ($round .. 2 * $round) {
                     $scheduler->enqueue(async_value $x);
-                    push @results, await $scheduler->dequeue;
+                    push @results, run_until_completion $scheduler->dequeue;
                 }
                 while (my ($async) = $scheduler->dequeue) {
-                    push @results, await $async;
+                    push @results, run_until_completion $async;
                 }
                 my @values = (0 .. 2 * $round);
                 is "@results", "@values";
@@ -173,7 +167,7 @@ describe q(Scheduler) => sub {
 
         is 0+@result_asyncs, 0+@values;
 
-        my @results = map { await $_ } @result_asyncs;
+        my @results = map { run_until_completion $_ } @result_asyncs;
 
         is "@results", "@values";
     };
@@ -187,12 +181,12 @@ describe q(Scheduler) => sub {
         my $starter_again = $scheduler->dequeue;
         is $starter, $starter_again, q(got starter async back);
         is scalar $scheduler->dequeue, undef, q(queue has no further elems);
-        await $starter_again;
+        run_until_completion $starter_again;
         $scheduler->complete($starter_again);
 
         my @results;
         while (my ($async) = $scheduler->dequeue) {
-            push @results, await $async;
+            push @results, run_until_completion $async;
         }
 
         is "@results", "1 2", q(got blocked tasks back);

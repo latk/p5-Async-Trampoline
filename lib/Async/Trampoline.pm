@@ -54,10 +54,10 @@ Async/recursive:
         my ($items, $i) = @_;
         return async_value $items if not $i:
         push @$items, $i--;
-        return deferred { loop($items, $i) };
+        return async { loop($items, $i) };
     }
 
-    await loop_async([], 5);
+    run_until_completion loop_async([], 5);
 
 =head1 FUNCTIONS
 
@@ -72,8 +72,8 @@ use Exporter 'import';
 
 our %EXPORT_TAGS = (
     all => [qw/
+        run_until_completion
         await
-        deferred
         async
         async_value
         async_cancel
@@ -89,17 +89,17 @@ use Async::Trampoline::Scheduler;
 
 ## no critic (ProhibitSubroutinePrototypes)
 
-=head2 await
+=head2 run_until_completion
 
-    @result = await $async
+    @result = run_until_completion $async
 
-    @result = $async->await
+    @result = $async->run_until_completion
 
 TODO
 
 =cut
 
-sub await($;) {
+sub run_until_completion($;) {
     my ($async) = @_;
 
     my $scheduler = Async::Trampoline::Scheduler->new;
@@ -181,28 +181,28 @@ sub _unify {
     return;
 }
 
-=head2 deferred
+=head2 async
 
-    $async = deferred { ... }
+    $async = async { ... }
 
 TODO
 
 =cut
 
-sub deferred(&) {
+sub async(&) {
     my ($body) = @_;
     my $empty_dep = bless [value => ()] => __PACKAGE__;
     return bless [thunk => $empty_dep, $body] => __PACKAGE__;
 }
 
-=head2 async
+=head2 await
 
-    $async = async $dependency => sub {
+    $async = await $dependency => sub {
         my (@result) = @;
         ...
     };
 
-    $async = $dependency->async(sub {
+    $async = $dependency->await(sub {
         my (@result) = @_;
         ...
     });
@@ -211,7 +211,7 @@ TODO
 
 =cut
 
-sub async($&) {
+sub await($&) {
     my ($dep, $body) = @_;
     return bless [thunk => $dep, $body] => __PACKAGE__;
 }
