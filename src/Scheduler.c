@@ -8,8 +8,8 @@
 #else
 #define ASYNC_TRAMPOLINE_SCHEDULER_DEBUG 1
 #define LOG_DEBUG(...) do {                                                 \
-    fprintf(stdout, "#DEBUG " __VA_ARGS__);                                 \
-    fflush(stdout);                                                         \
+    fprintf(stderr, "#DEBUG " __VA_ARGS__);                                 \
+    fflush(stderr);                                                         \
 } while (0)
 #endif
 
@@ -36,7 +36,11 @@ static
 SV*
 Async_key(pTHX_ Async* async)
 {
-    return newSVpvf("%zu", (size_t) SvRV(async));
+    return newSVpvf("0x%zx", (size_t) SvIV(SvRV(async)));
+    // if in the future custom hash tables are implemented,
+    // consider <https://stackoverflow.com/a/12996028>
+    // or <http://www.isthe.com/chongo/tech/comp/fnv/>
+    // for the hash function.
 }
 
 typedef CIRCULAR_BUFFER(Async*) CircularBuffer_Async;

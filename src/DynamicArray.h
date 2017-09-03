@@ -71,6 +71,28 @@
         (array).size = 0; \
     } while (0)
 
+/** Move the array contents from source to target.
+ *
+ *      void DYNAMIC_ARRAY_MOVE(target, source)
+ *
+ *  The elements themselves will not be moved or reallocated.
+ *  Pointers are not invalidated.
+ *  This "steals" the allocated buffer.
+ *
+ *  target: dynamic array
+ *      The array that should receive the elements.
+ *      Should be empty prior to this call,
+ *      see DYNAMIC_ARRAY_FREE().
+ *  source: dynamic array
+ *      The array providing the elements.
+ *      After this call, it will be empty.
+ */
+#define DYNAMIC_ARRAY_MOVE(target, source) do {                             \
+    BASIC_DYNAMIC_ARRAY_MOVE((target).base, (source).base);                 \
+    (target).size = (source).size;                                          \
+    (source).size = 0;                                                      \
+} while (0)
+
 /** Grow the array to a specific capacity.
  *
  *      void DYNAMIC_ARRAY_RESERVE(ok, TValyue, array, capacity)

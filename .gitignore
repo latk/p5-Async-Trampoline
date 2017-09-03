@@ -6,3 +6,5 @@
 /Build
 /MYMETA.json
 /MYMETA.yml
+*.o
+/cover_db/

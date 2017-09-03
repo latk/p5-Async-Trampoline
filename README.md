@@ -95,9 +95,12 @@ TODO
 
 TODO
 
-## async\_else
+## resolved\_or
 
-    $async = async_else @choices
+## async\_resolved\_or
+
+    $async = $first_async->resolved_or($alternative_async)
+    $async = async_resolved_or $first_async, $alternative_async
 
 TODO
 

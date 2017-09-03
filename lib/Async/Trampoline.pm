@@ -68,6 +68,9 @@ our $VERSION = '0.000001';
 $VERSION = eval $VERSION;
 ## use critic
 
+use XSLoader;
+XSLoader::load __PACKAGE__, $VERSION;
+
 use Exporter 'import';
 
 our %EXPORT_TAGS = (
@@ -77,7 +80,6 @@ our %EXPORT_TAGS = (
         async
         async_value
         async_cancel
-        async_else
     /],
 );
 
@@ -97,103 +99,11 @@ use Async::Trampoline::Scheduler;
 
 TODO
 
-=cut
-
-sub run_until_completion($;) {
-    my ($async) = @_;
-
-    my $scheduler = Async::Trampoline::Scheduler->new;
-
-    my $async_is_ready = sub {
-        my ($async) = @_;
-        return $async->[0] eq 'value';
-    };
-
-    $scheduler->enqueue($async);
-
-    TASK:
-    while (my ($top) = $scheduler->dequeue) {
-        DEBUG and warn "#DEBUG evaluating $top\n";
-
-        my ($type, @args) = @$top;
-
-        if ($type eq 'value') {
-            $scheduler->complete($top);
-            next TASK;
-        }
-
-        if ($type eq 'cancel') {
-            $scheduler->complete($top);
-            next TASK;
-        }
-
-        if ($type eq 'thunk') {
-            my ($dep, $body) = @args;
-
-            if (not $async_is_ready->($dep)) {
-                $scheduler->enqueue($dep => $top);
-                next TASK;
-            }
-
-            _unify($top, $body->(@$dep[1 ... $#$dep]));
-            $scheduler->enqueue($top);
-            next TASK;
-        }
-
-        if ($type eq 'else') {
-            if (not @args) {
-                die "async_else: found no values";
-            }
-
-            my ($dep, @rest) = @args;
-
-            if ($dep->[0] eq 'cancel') {
-                @$top = (else => @rest);
-                $scheduler->enqueue($top);
-                next TASK;
-            }
-
-            if (not $async_is_ready->($dep)) {
-                $scheduler->enqueue($dep => $top);
-                next TASK;
-            }
-
-            _unify($top, $dep);
-            $scheduler->enqueue($top);
-            next TASK;
-        }
-
-        # uncoverable statement
-        die "Unknown async type $type";
-    }
-
-    my ($type, @args) = @$async;
-
-    return @args[0 .. $#args] if $type eq 'value';
-
-    # uncoverable statement
-    die "Async with type $type was not resolved in time: $async";
-}
-
-sub _unify {
-    my ($target, $source) = @_;
-    @$target = @$source;
-    return;
-}
-
 =head2 async
 
     $async = async { ... }
 
 TODO
-
-=cut
-
-sub async(&) {
-    my ($body) = @_;
-    my $empty_dep = bless [value => ()] => __PACKAGE__;
-    return bless [thunk => $empty_dep, $body] => __PACKAGE__;
-}
 
 =head2 await
 
@@ -209,24 +119,11 @@ sub async(&) {
 
 TODO
 
-=cut
-
-sub await($&) {
-    my ($dep, $body) = @_;
-    return bless [thunk => $dep, $body] => __PACKAGE__;
-}
-
 =head2 async_value
 
     $async = async_value @values
 
 TODO
-
-=cut
-
-sub async_value(@) {
-    return bless [value => @_] => __PACKAGE__;
-}
 
 =head2 async_cancel
 
@@ -234,22 +131,19 @@ sub async_value(@) {
 
 TODO
 
-=cut
+=head2 resolved_or
 
-sub async_cancel() {
-    return bless [cancel => ()] => __PACKAGE__;
-}
+=head2 async_resolved_or
 
-=head2 async_else
-
-    $async = async_else @choices
+    $async = $first_async->resolved_or($alternative_async)
+    $async = async_resolved_or $first_async, $alternative_async
 
 TODO
 
 =cut
 
-sub async_else(@) {
-    return bless [else => @_] => __PACKAGE__;
+sub resolved_or :method {
+    goto &async_resolved_or;
 }
 
 use overload
@@ -259,9 +153,8 @@ use overload
 
         require Scalar::Util;
 
-        return sprintf "<Async %s @ 0x%x>",
-            $self->[0],
-            Scalar::Util::refaddr($self);
+        return sprintf "<Async 0x%x to 0x%x>",
+            Scalar::Util::refaddr($self), $$self;
     };
 
 1;

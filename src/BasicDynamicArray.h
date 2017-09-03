@@ -28,6 +28,14 @@
         (array).size = 0; \
     } while (0)
 
+#define BASIC_DYNAMIC_ARRAY_MOVE(target, source) do {                       \
+    BASIC_DYNAMIC_ARRAY_FREE(target);                                       \
+    (target).data = (source).data;                                          \
+    (target).size = (source).size;                                          \
+    (source).data = NULL;                                                   \
+    (source).size = 0;                                                      \
+} while (0)
+
 #define BASIC_DYNAMIC_ARRAY_GROW(ok, TValue, array, n) \
     do { \
         (ok) = 0; \

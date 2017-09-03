@@ -59,38 +59,29 @@ describe q(monad laws) => sub {
     };
 };
 
-describe q(async_else) => sub {
+describe q(resolved_or) => sub {
     it q(returns the first value) => sub {
-        my $async = async_else(
-            async_value(42),
-            async_cancel,
-        );
+        my $async = async_value(42)->resolved_or(async_cancel);
         is run_until_completion($async), 42;
     };
 
     it q(skips cancelled values) => sub {
-        my $async = async_else(
-            async_cancel,
-            async_value("foo"),
-        );
+        my $async = async_cancel->resolved_or(async_value "foo");
         is run_until_completion($async), "foo";
     };
 
     it q(can evaluate thunks) => sub {
-        my $async = async_else(
-            async { async_cancel },
-            async_value("bar"),
-        );
+        my $async =
+            (async { async_cancel })
+            ->resolved_or(async_value "bar");
         is run_until_completion($async), "bar";
     };
 
     it q(dies if no uncancelled values exist) => sub {
-        my $async = async_else
-            async_cancel,
-            async_cancel;
+        my $async = async_cancel->resolved_or(async_cancel);
 
         throws_ok { run_until_completion($async) }
-            qr/^async_else:\ found\ no\ values/x;
+            qr/^run_until_completion\(\): Async was cancelled/;
     };
 };
 
