@@ -321,72 +321,13 @@ Async_Value_clear(
 
 //}}}
 
-//{{{ Evaluation: Async_X_evaluate()
-//  Incomplete -> Complete
-
+// Evaluation: Async_X_evaluate()
+// Incomplete -> Complete
 void
 Async_eval(
         Async*  self,
         Async** next,
         Async** blocked);
-
-// Async_Ptr_eval does not exist. Instead: Async_Ptr_follow()
-
-void
-Async_RawThunk_eval(
-        Async*  self,
-        Async** next,
-        Async** blocked);
-
-void
-Async_Thunk_eval(
-        Async*  self,
-        Async** next,
-        Async** blocked);
-
-void
-Async_Concat_eval(
-        Async*  self,
-        Async** next,
-        Async** blocked);
-
-void
-Async_CompleteThen_eval(
-        Async*  self,
-        Async** next,
-        Async** blocked);
-
-void
-Async_ResolvedOr_eval(
-        Async*  self,
-        Async** next,
-        Async** blocked);
-
-void
-Async_ResolvedThen_eval(
-        Async*  self,
-        Async** next,
-        Async** blocked);
-
-void
-Async_ValueOr_eval(
-        Async*  self,
-        Async** next,
-        Async** blocked);
-
-void
-Async_ValueThen_eval(
-        Async*  self,
-        Async** next,
-        Async** blocked);
-
-// Async_Cancel_eval does not exist
-
-// Async_Error_eval does not exist
-
-// Async_Value_eval does not exist
-
-//}}}
 
 void
 Async_unify(
@@ -406,4 +347,8 @@ bool
 Async_has_category(
         Async* self,
         enum Async_Type category);
+
+void
+Async_run_until_completion(
+        Async*  async);
 

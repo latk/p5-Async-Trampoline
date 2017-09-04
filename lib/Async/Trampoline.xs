@@ -6,7 +6,6 @@
 
 #include "Scheduler.h"
 #include "Async.h"
-#include "EventLoop.h"
 
 static
 void*
