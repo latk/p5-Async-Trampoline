@@ -1,30 +1,6 @@
 #include "Async.h"
 
 void
-Async_CompleteThen_init(
-        Async*  self,
-        Async*  first,
-        Async*  then)
-{
-    Async_Binary_init(self, Async_IS_COMPLETE_THEN, first, then);
-}
-
-void
-Async_CompleteThen_init_move(
-        Async*  self,
-        Async*  other)
-{
-    Async_Binary_init_move(self, Async_IS_COMPLETE_THEN, other);
-}
-
-void
-Async_CompleteThen_clear(
-        Async*  self)
-{
-    Async_Binary_clear(self, Async_IS_COMPLETE_THEN);
-}
-
-void
 Async_CompleteThen_eval(
         Async*  self,
         Async** next,

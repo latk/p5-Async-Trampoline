@@ -1,30 +1,6 @@
 #include "Async.h"
 
 void
-Async_ValueOr_init(
-        Async*  self,
-        Async*  first,
-        Async*  orelse)
-{
-    Async_Binary_init(self, Async_IS_VALUE_OR, first, orelse);
-}
-
-void
-Async_ValueOr_init_move(
-        Async*  self,
-        Async*  other)
-{
-    Async_Binary_init_move(self, Async_IS_VALUE_OR, other);
-}
-
-void
-Async_ValueOr_clear(
-        Async*  self)
-{
-    Async_Binary_clear(self, Async_IS_VALUE_OR);
-}
-
-void
 Async_ValueOr_eval(
         Async*  self,
         Async** next,

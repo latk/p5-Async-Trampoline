@@ -407,20 +407,3 @@ Async_has_category(
         Async* self,
         enum Async_Type category);
 
-void
-Async_Binary_init(
-        Async* self,
-        enum Async_Type type,
-        Async* left,
-        Async* right);
-
-void
-Async_Binary_init_move(
-        Async*          self,
-        enum Async_Type type,
-        Async*          other);
-
-void
-Async_Binary_clear(
-        Async* self,
-        enum Async_Type type);

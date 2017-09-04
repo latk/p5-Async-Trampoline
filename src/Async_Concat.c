@@ -1,55 +1,6 @@
 #include "Async.h"
 
 void
-Async_Concat_init(
-        Async*  self,
-        Async*  left,
-        Async*  right)
-{
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
-    assert(left);
-    assert(right);
-
-    self->type = Async_IS_CONCAT;
-    self->as_binary.left = left;
-    self->as_binary.right = right;
-
-    Async_ref(left);
-    Async_ref(right);
-}
-
-void
-Async_Concat_init_move(
-        Async*  self,
-        Async*  other)
-{
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
-    assert(other);
-    assert(other->type == Async_IS_CONCAT);
-
-    self->type = Async_IS_CONCAT;
-    self->as_binary = other->as_binary;
-    other->as_binary.left = NULL;
-    other->as_binary.right = NULL;
-}
-
-void
-Async_Concat_clear(
-        Async*  self)
-{
-    assert(self);
-    assert(self->type == Async_IS_CONCAT);
-
-    Async_unref(self->as_binary.left);
-    Async_unref(self->as_binary.right);
-
-    self->as_binary.left = NULL;
-    self->as_binary.right = NULL;
-}
-
-void
 Async_Concat_eval(
         Async*  self,
         Async** next,
