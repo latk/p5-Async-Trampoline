@@ -1,5 +1,34 @@
 #include "Async.h"
+
 #define UNUSED(x) (void)(x)
+
+#define BINARY_INIT(name, type)                                             \
+    void Async_ ## name ## _init(Async* self, Async* left, Async* right)    \
+    { binary_init(self, type, left, right); }
+
+#define BINARY_INIT_MOVE(name, type)                                        \
+    void Async_ ## name ## _init_move(Async* self, Async* other)            \
+    { binary_init_move(self, type, other); }
+
+#define BINARY_CLEAR(name, type)                                            \
+    void Async_ ## name ## _clear(Async* self)                              \
+    { binary_clear(self, type); }
+
+#define BINARY_INIT_MOVE_CLEAR(name, type)                                  \
+    BINARY_INIT(name, type)                                                 \
+    BINARY_INIT_MOVE(name, type)                                            \
+    BINARY_CLEAR(name, type)
+
+#define ASSERT_INIT(self) do {                                              \
+    assert(self);                                                           \
+    assert(self->type == Async_IS_UNINITIALIZED);                           \
+} while (0)
+
+#define ASSERT_INIT_MOVE(self, other, other_type) do {                      \
+    ASSERT_INIT(self);                                                      \
+    assert(other);                                                          \
+    assert(other->type == other_type);                                      \
+} while (0)
 
 // Polymorphic
 
@@ -179,13 +208,12 @@ binary_init(
         Async*          left,
         Async*          right)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
+    ASSERT_INIT(self);
     assert(left);
     assert(right);
 
-    Async_ref(left);
-    Async_ref(right);
+    Async_ref(left = Async_Ptr_follow(left));
+    Async_ref(right = Async_Ptr_follow(right));
 
     self->type = type;
     self->as_binary.left = left;
@@ -199,10 +227,7 @@ binary_init_move(
         enum Async_Type type,
         Async*          other)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
-    assert(other);
-    assert(other->type == type);
+    ASSERT_INIT_MOVE(self, other, type);
 
     self->type = type;
     other->type = Async_IS_UNINITIALIZED;
@@ -219,7 +244,7 @@ binary_clear(
         enum Async_Type type)
 {
     assert(self);
-    assert(self->type = type);
+    assert(self->type == type);
 
     Async* left = self->as_binary.left;
     Async* right = self->as_binary.right;
@@ -239,13 +264,10 @@ Async_Ptr_init(
         Async*  self,
         Async*  target)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
+    ASSERT_INIT(self);
     assert(target);
 
-    target = Async_Ptr_follow(target);
-
-    Async_ref(target);
+    Async_ref(target = Async_Ptr_follow(target));
 
     self->type = Async_IS_PTR;
     self->as_ptr = target;
@@ -256,10 +278,7 @@ Async_Ptr_init_move(
         Async*  self,
         Async*  other)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
-    assert(other);
-    assert(other->type == Async_IS_PTR);
+    ASSERT_INIT_MOVE(self, other, Async_IS_PTR);
 
     self->type = Async_IS_PTR;
     other->type = Async_IS_UNINITIALIZED;
@@ -290,10 +309,11 @@ Async_RawThunk_init(
         Destructible            context,
         Async*                  dependency)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
+    ASSERT_INIT(self);
     assert(callback);
     assert(context.vtable);
+
+    UNUSED(dependency);
 
     assert(0); // TODO not implemented
 }
@@ -303,10 +323,7 @@ Async_RawThunk_init_move(
         Async*  self,
         Async*  other)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
-    assert(other);
-    assert(other->type == Async_IS_RAWTHUNK);
+    ASSERT_INIT_MOVE(self, other, Async_IS_RAWTHUNK);
 
     assert(0); // TODO not implemented
 }
@@ -334,12 +351,12 @@ Async_Thunk_init(
             "init Async %p to Thunk: callback=%p context.data=%p dependency=%p",
             self, callback, context.data, dependency);
 
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
+    ASSERT_INIT(self);
     assert(callback);
+    assert(context.vtable);
 
     if (dependency)
-        Async_ref(dependency);
+        Async_ref(dependency = Async_Ptr_follow(dependency));
 
     self->type = Async_IS_THUNK;
     self->as_thunk.dependency = dependency;
@@ -353,10 +370,7 @@ Async_Thunk_init_move(
         Async*  self,
         Async*  other)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
-    assert(other);
-    assert(other->type == Async_IS_THUNK);
+    ASSERT_INIT_MOVE(self, other, Async_IS_THUNK);
 
     self->type = Async_IS_THUNK;
     other->type = Async_IS_UNINITIALIZED;
@@ -387,161 +401,12 @@ Async_Thunk_clear(
     Destructible_clear(&self->as_thunk.context);
 }
 
-// Concat
-
-void
-Async_Concat_init(
-        Async*  self,
-        Async*  left,
-        Async*  right)
-{
-    binary_init(self, Async_IS_CONCAT, left, right);
-}
-
-void
-Async_Concat_init_move(
-        Async*  self,
-        Async*  other)
-{
-    binary_init_move(self, Async_IS_CONCAT, other);
-}
-
-void
-Async_Concat_clear(
-        Async*  self)
-{
-    binary_clear(self, Async_IS_CONCAT);
-}
-
-// CompleteThen
-
-void
-Async_CompleteThen_init(
-        Async*  self,
-        Async*  first,
-        Async*  then)
-{
-    binary_init(self, Async_IS_COMPLETE_THEN, first, then);
-}
-
-void
-Async_CompleteThen_init_move(
-        Async*  self,
-        Async*  other)
-{
-    binary_init_move(self, Async_IS_COMPLETE_THEN, other);
-}
-
-void
-Async_CompleteThen_clear(
-        Async*  self)
-{
-    binary_clear(self, Async_IS_COMPLETE_THEN);
-}
-
-// ResolvedOr
-
-void
-Async_ResolvedOr_init(
-        Async*  self,
-        Async*  first,
-        Async*  orelse)
-{
-    binary_init(self, Async_IS_RESOLVED_OR, first, orelse);
-}
-
-void
-Async_ResolvedOr_init_move(
-        Async*  self,
-        Async*  other)
-{
-    binary_init_move(self, Async_IS_RESOLVED_OR, other);
-}
-
-void
-Async_ResolvedOr_clear(
-        Async*  self)
-{
-    binary_clear(self, Async_IS_RESOLVED_OR);
-}
-
-// ResolvedThen
-
-void
-Async_ResolvedThen_init(
-        Async*  self,
-        Async*  first,
-        Async*  then)
-{
-    binary_init(self, Async_IS_RESOLVED_THEN, first, then);
-}
-
-void
-Async_ResolvedThen_init_move(
-        Async*  self,
-        Async*  other)
-{
-    binary_init_move(self, Async_IS_RESOLVED_THEN, other);
-}
-
-void
-Async_ResolvedThen_clear(
-        Async*  self)
-{
-    binary_clear(self, Async_IS_RESOLVED_THEN);
-}
-
-// ValueOr
-
-void
-Async_ValueOr_init(
-        Async*  self,
-        Async*  first,
-        Async*  orelse)
-{
-    binary_init(self, Async_IS_VALUE_OR, first, orelse);
-}
-
-void
-Async_ValueOr_init_move(
-        Async*  self,
-        Async*  other)
-{
-    binary_init_move(self, Async_IS_VALUE_OR, other);
-}
-
-void
-Async_ValueOr_clear(
-        Async*  self)
-{
-    binary_clear(self, Async_IS_VALUE_OR);
-}
-
-// ValueThen
-
-void
-Async_ValueThen_init(
-        Async*  self,
-        Async*  first,
-        Async*  then)
-{
-    binary_init(self, Async_IS_VALUE_THEN, first, then);
-}
-
-void
-Async_ValueThen_init_move(
-        Async*  self,
-        Async*  other)
-{
-    binary_init_move(self, Async_IS_VALUE_THEN, other);
-}
-
-void
-Async_ValueThen_clear(
-        Async*  self)
-{
-    binary_clear(self, Async_IS_VALUE_THEN);
-}
+BINARY_INIT_MOVE_CLEAR(Concat,          Async_IS_CONCAT)
+BINARY_INIT_MOVE_CLEAR(CompleteThen,    Async_IS_COMPLETE_THEN)
+BINARY_INIT_MOVE_CLEAR(ResolvedOr,      Async_IS_RESOLVED_OR)
+BINARY_INIT_MOVE_CLEAR(ResolvedThen,    Async_IS_RESOLVED_THEN)
+BINARY_INIT_MOVE_CLEAR(ValueOr,         Async_IS_VALUE_OR)
+BINARY_INIT_MOVE_CLEAR(ValueThen,       Async_IS_VALUE_THEN)
 
 // Cancel
 
@@ -549,8 +414,7 @@ void
 Async_Cancel_init(
         Async* self)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
+    ASSERT_INIT(self);
 
     self->type = Async_IS_CANCEL;
 }
@@ -560,6 +424,8 @@ Async_Cancel_init_move(
         Async*  self,
         Async*  other)
 {
+    ASSERT_INIT_MOVE(self, other, Async_IS_CANCEL);
+
     Async_Cancel_init(self);
     Async_Cancel_clear(other);
 }
@@ -581,8 +447,7 @@ Async_Error_init(
         Async*          self,
         Destructible    error)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
+    ASSERT_INIT(self);
     assert(error.vtable);
 
     self->type = Async_IS_ERROR;
@@ -594,10 +459,7 @@ Async_Error_init_move(
         Async*  self,
         Async*  other)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
-    assert(other);
-    assert(other->type == Async_IS_ERROR);
+    ASSERT_INIT_MOVE(self, other, Async_IS_ERROR);
 
     self->type = Async_IS_ERROR;
     other->type = Async_IS_UNINITIALIZED;
@@ -622,8 +484,7 @@ Async_Value_init(
         Async*                          self,
         DestructibleTuple*              values)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
+    ASSERT_INIT(self);
 
     if (ASYNC_TRAMPOLINE_DEBUG)
     {
@@ -645,10 +506,7 @@ Async_Value_init_move(
         Async*  self,
         Async*  other)
 {
-    assert(self);
-    assert(self->type == Async_IS_UNINITIALIZED);
-    assert(other);
-    assert(other->type == Async_IS_VALUE);
+    ASSERT_INIT_MOVE(self, other, Async_IS_VALUE);
     assert(other->refcount == 1);
 
     self->type = Async_IS_VALUE;

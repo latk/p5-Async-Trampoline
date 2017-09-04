@@ -338,6 +338,20 @@ Async*
 Async_Ptr_follow(
         Async* self);
 
+inline static
+Async*
+Async_Ptr_fold(Async** ptr)
+{
+    Async* target = Async_Ptr_follow(*ptr);
+    if (target != *ptr)
+    {
+        Async_ref(target);
+        Async_unref(*ptr);
+        *ptr = target;
+    }
+    return *ptr;
+}
+
 bool
 Async_has_type(
         Async* self,
