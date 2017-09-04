@@ -25,28 +25,17 @@ Async_run_until_completion(
 
     SAVEDESTRUCTOR(Async_Trampoline_Scheduler_unref, scheduler);
 
-    SV* async_sv = newSV(0);
-    SAVEFREESV(async_sv);
-    sv_setref_pv(async_sv, "Async::Trampoline", (void*) async);
-    Async_ref(async);
-
     Async_Trampoline_Scheduler_enqueue_without_dependencies(
-            aTHX_ scheduler, async_sv);
+            aTHX_ scheduler, async);
 
     while (1)
     {
-        SV* top_sv = top_sv = Async_Trampoline_Scheduler_dequeue(aTHX_ scheduler);
+        Async* top = Async_Trampoline_Scheduler_dequeue(aTHX_ scheduler);
 
-        if (!top_sv)
+        if (!top)
             break;
 
         ENTER;
-
-        assert(sv_isa(top_sv, "Async::Trampoline"));
-        Async* top = (Async*) SvIV(SvRV(top_sv));
-        assert(top);
-
-        SAVEFREESV(top_sv);
 
         Async trap;
         Async* next = &trap;
@@ -61,31 +50,25 @@ Async_run_until_completion(
 
         if (next)
         {
-            SV* next_sv = newSV(0);
-            SAVEFREESV(next_sv);
-            sv_setref_pv(next_sv, "Async::Trampoline", (void*) next);
-
             Async_Trampoline_Scheduler_enqueue_without_dependencies(
-                    aTHX_ scheduler, next_sv);
+                    aTHX_ scheduler, next);
 
             if (blocked)
             {
-                SV* blocked_sv = newSV(0);
-                SAVEFREESV(blocked_sv);
-                sv_setref_pv(blocked_sv, "Async::Trampoline", (void*) blocked);
-
                 Async_Trampoline_Scheduler_block_on(
-                        aTHX_ scheduler, next_sv, blocked_sv);
+                        aTHX_ scheduler, next, blocked);
             }
         }
 
         if (top != next && top != blocked)
         {
             assert(Async_has_category(top, Async_CATEGORY_COMPLETE));
-            Async_Trampoline_Scheduler_complete(aTHX_ scheduler, top_sv);
+            Async_Trampoline_Scheduler_complete(aTHX_ scheduler, top);
         }
 
         LEAVE;
+
+        Async_unref(top);
     }
 
     ASYNC_LOG_DEBUG("loop complete");

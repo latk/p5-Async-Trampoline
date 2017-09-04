@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Async.h"
+
 /* I hope that one day, these headers are unnecessary */
 #define PERL_NO_GET_CONTEXT
 #include "EXTERN.h"
@@ -61,7 +63,7 @@ bool
 Async_Trampoline_Scheduler_enqueue_without_dependencies(
         pTHX_
         Async_Trampoline_Scheduler* self,
-        SV* async);
+        Async* async);
 
 /** Register a dependency relationship.
  *
@@ -79,10 +81,10 @@ void
 Async_Trampoline_Scheduler_block_on(
         pTHX_
         Async_Trampoline_Scheduler* self,
-        SV* dependency_async,
-        SV* blocked_async);
+        Async* dependency_async,
+        Async* blocked_async);
 
-SV*
+Async*
 Async_Trampoline_Scheduler_dequeue(
         pTHX_
         Async_Trampoline_Scheduler* self);
@@ -91,4 +93,4 @@ void
 Async_Trampoline_Scheduler_complete(
         pTHX_
         Async_Trampoline_Scheduler* self,
-        SV* async);
+        Async* async);

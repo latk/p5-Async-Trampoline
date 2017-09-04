@@ -206,3 +206,13 @@ async_resolved_or(first, orelse)
         RETVAL = self;
     }
     OUTPUT: RETVAL
+
+SV*
+to_string(self)
+        Async*  self;
+    PROTOTYPE: DISABLE
+    CODE:
+    {
+        RETVAL = newSVpvf("<Async 0x%zx %s>", (size_t) self, Async_Type_name(self->type));
+    }
+    OUTPUT: RETVAL

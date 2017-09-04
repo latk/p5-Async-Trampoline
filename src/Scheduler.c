@@ -13,30 +13,49 @@
 } while (0)
 #endif
 
-typedef SV Async;
+typedef SV AsyncSV;
 
-#define ASYNC_FORMAT "%s"
-#define ASYNC_FORMAT_ARGS(async) SvPV_nolen(async)
+#define ASYNC_FORMAT "<Async 0x%zx %s>"
+#define ASYNC_FORMAT_ARGS(async) (size_t) (async), Async_Type_name((async)->type)
 
 static
 void
-Async_ref(pTHX_ Async* async)
+AsyncSV_ref(pTHX_ AsyncSV* async)
 {
     SvREFCNT_inc(async);
 }
 
 static
 void
-Async_unref(pTHX_ Async* async)
+AsyncSV_unref(pTHX_ AsyncSV* async)
 {
     SvREFCNT_dec(async);
+}
+
+static
+AsyncSV*
+AsyncSV_wrap(Async* self)
+{
+    SV* sv = newSV(0);
+    sv_setref_pv(sv, "Async::Trampoline", (void*) self);
+    Async_ref(self);
+    return sv;
+}
+
+static
+Async*
+AsyncSV_unwrap(AsyncSV* sv)
+{
+    if (sv_isa(sv, "Async::Trampoline"))
+        return (Async*) SvIV(SvRV(sv));
+    return NULL;
 }
 
 static
 SV*
 Async_key(pTHX_ Async* async)
 {
-    return newSVpvf("0x%zx", (size_t) SvIV(SvRV(async)));
+    return newSVpvf("0x%zx", (size_t) async);
     // if in the future custom hash tables are implemented,
     // consider <https://stackoverflow.com/a/12996028>
     // or <http://www.isthe.com/chongo/tech/comp/fnv/>
@@ -203,8 +222,7 @@ Async_Trampoline_Scheduler_block_on(
         ASYNC_FORMAT_ARGS(blocked_async),
         ASYNC_FORMAT_ARGS(dependency_async));
 
-    Async_ref(blocked_async);
-    av_push(blocked_list, blocked_async);
+    av_push(blocked_list, AsyncSV_wrap(blocked_async));
 }
 
 Async*
@@ -267,10 +285,10 @@ Async_Trampoline_Scheduler_complete(
 
     while (ok && av_len(blocked) > -1)
     {
-        Async* item = av_shift(blocked);
+        AsyncSV* item = av_shift(blocked);
         ok = Async_Trampoline_Scheduler_enqueue_without_dependencies(
-                aTHX_ self, item);
-        Async_unref(item);
+                aTHX_ self, AsyncSV_unwrap(item));
+        AsyncSV_unref(item);
     }
 
     if (!ok)

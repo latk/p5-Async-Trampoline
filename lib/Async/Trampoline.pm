@@ -146,15 +146,20 @@ sub resolved_or :method {
     goto &async_resolved_or;
 }
 
+=head2 to_string
+
+    $str = $async->to_string
+    $str = "$async"
+
+Low-level debugging stringfification that displays Async identity and type.
+
+=cut
+
 use overload
     fallback => 1,
     q("") => sub {
         my ($self) = @_;
-
-        require Scalar::Util;
-
-        return sprintf "<Async 0x%x to 0x%x>",
-            Scalar::Util::refaddr($self), $$self;
+        return $self->to_string;
     };
 
 1;

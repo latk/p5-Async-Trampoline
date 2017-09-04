@@ -104,6 +104,13 @@ TODO
 
 TODO
 
+## to\_string
+
+    $str = $async->to_string
+    $str = "$async"
+
+Low-level debugging stringfification that displays Async identity and type.
+
 # AUTHOR
 
 amon - Lukas Atkinson (cpan: AMON) <amon@cpan.org>
