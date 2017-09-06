@@ -61,15 +61,18 @@
  *  If the array elements hold resources,
  *  you must free them manually first.
  *
+ *  Precondition:
+ *      The array is empty.
+ *
  *  array: dynamic array
  *      The array to be freed.
  *      May be evaluated multiple times.
  */
-#define DYNAMIC_ARRAY_FREE(array) \
-    do { \
-        BASIC_DYNAMIC_ARRAY_FREE((array).base); \
-        (array).size = 0; \
-    } while (0)
+#define DYNAMIC_ARRAY_FREE(array) do {                                      \
+    assert(DYNAMIC_ARRAY_SIZE(array) == 0);                                 \
+    BASIC_DYNAMIC_ARRAY_FREE((array).base);                                 \
+    (array).size = 0;                                                       \
+} while (0)
 
 /** Move the array contents from source to target.
  *
@@ -314,9 +317,22 @@
  *      DYNAMIC_ARRAY_POP(x, int, my_array);
  *      printf("pop(my_array) = %d\n", x);
  */
-#define DYNAMIC_ARRAY_POP(var, TValue, array) \
-    do { \
-        size_t _dynamic_array_i = --(array).size; \
-        (var) = (array).base.data[_dynamic_array_i]; \
-        DYNAMIC_ARRAY_DEPENDENCY_MZERO(&(array).base.data[_dynamic_array_i], TValue, 1); \
-    } while (0)
+#define DYNAMIC_ARRAY_POP(var, TValue, array) do {                          \
+    size_t _dynamic_array_i = --(array).size;                               \
+    (var) = (array).base.data[_dynamic_array_i];                            \
+    DYNAMIC_ARRAY_DEPENDENCY_MZERO(                                         \
+            &(array).base.data[_dynamic_array_i], TValue, 1);               \
+} while (0)
+
+// precondition: i is a valid index
+#define DYNAMIC_ARRAY_DELETE_AT(var, TValue, array, i) do {                 \
+    TValue* _dynamic_array_data = (array).base.data;                        \
+    TValue _dynamic_array_item = _dynamic_array_data[i];                    \
+    for (size_t _dynamic_array_i = i + 1                                    \
+            ; _dynamic_array_i < (array).size                               \
+            ; _dynamic_array_i++)                                           \
+        _dynamic_array_data[_dynamic_array_i - 1] =                         \
+            _dynamic_array_data[_dynamic_array_i];                          \
+    data[(array).size - 1] = _dynamic_array_temp;                           \
+    DYNAMIC_ARRAY_POP(var, TValue, array);                                  \
+} while (0)

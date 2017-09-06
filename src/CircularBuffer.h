@@ -87,5 +87,13 @@
     (buffer).start = CIRCULAR_BUFFER_MAP_INDEX(buffer, 1);                  \
 } while (0)
 
+// precondition: buffer size != 0
+#define CIRCULAR_BUFFER_DEQ_BACK(var, buffer) do {                          \
+    (buffer).size--;                                                        \
+    size_t _circular_buffer_i = CIRCULAR_BUFFER_MAP_INDEX(                  \
+            buffer, (buffer).size);                                         \
+    (var) = (buffer).storage.data[_circular_buffer_i];                      \
+} while (0)
+
 #define CIRCULAR_BUFFER_MAP_INDEX(buffer, i)                                \
     (((buffer).start + (i)) % (buffer).storage.size)
