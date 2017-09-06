@@ -1,5 +1,6 @@
 #include "Scheduler.h"
 
+#include "DynamicArray.h"
 #include "CircularBuffer.h"
 
 #ifndef ASYNC_TRAMPOLINE_SCHEDULER_DEBUG
@@ -14,6 +15,8 @@
 #endif
 
 typedef SV AsyncSV;
+
+typedef DYNAMIC_ARRAY(Async*) AsyncList;
 
 #define ASYNC_FORMAT "<Async 0x%zx %s>"
 #define ASYNC_FORMAT_ARGS(async) (size_t) (async), Async_Type_name((async)->type)
@@ -203,26 +206,36 @@ Async_Trampoline_Scheduler_block_on(
 
     SV* entry_sv = *maybe_entry_sv;
 
-    AV* blocked_list = NULL;
-    if (SvROK(entry_sv) && SvTYPE(SvRV(entry_sv)) == SVt_PVAV)
+    AsyncList* blocked_list = NULL;
+    if (SvOK(entry_sv)
+            && SvIOK(entry_sv)
+            && (blocked_list = (AsyncList*) SvIV(entry_sv)))
     {
-        blocked_list = (AV*) SvRV(entry_sv);
+        // ok
     }
     else
     {
-        blocked_list = newAV();
-        sv_setsv(entry_sv, newRV_noinc((SV*) blocked_list));
+        blocked_list = malloc(sizeof(AsyncList));
+        *blocked_list = (AsyncList) DYNAMIC_ARRAY_INIT;
+        sv_setiv(entry_sv, (IV) blocked_list);
     }
 
-    if (!SvROK(entry_sv))
-        croak("dependency hash entry could not be created!");
+    assert(SvIOK(entry_sv));
 
     LOG_DEBUG(
         "dependency of " ASYNC_FORMAT " on " ASYNC_FORMAT "\n",
         ASYNC_FORMAT_ARGS(blocked_async),
         ASYNC_FORMAT_ARGS(dependency_async));
 
-    av_push(blocked_list, AsyncSV_wrap(blocked_async));
+    bool ok;
+    DYNAMIC_ARRAY_PUSH(
+            ok,
+            Async*,
+            *blocked_list,
+            (Async_ref(blocked_async), blocked_async));
+
+    if (!ok)
+        croak("block list allocation failed");
 }
 
 Async*
@@ -274,23 +287,36 @@ Async_Trampoline_Scheduler_complete(
     else
         LOG_DEBUG("    '-> sv=(undef)\n");
 
-    if (!SvROK(blocked_sv) || SvTYPE(SvRV(blocked_sv)) != SVt_PVAV)
+    AsyncList* blocked = NULL;
+    if (SvIOK(blocked_sv)
+            && (blocked = (AsyncList*) SvIV(blocked_sv)))
+    {
+        // ok
+    }
+    else
+    {
         croak("blocked entry was not an array of asyncs");
+    }
 
-    AV* blocked = (AV*) SvRV(blocked_sv);
-
-    LOG_DEBUG("    '-> %zd dependencies\n", av_len(blocked) + 1);
+    LOG_DEBUG("    '-> %zd dependencies\n", DYNAMIC_ARRAY_SIZE(*blocked));
 
     bool ok = true;
-
-    while (ok && av_len(blocked) > -1)
+    Async** item_ptr = NULL;
+    for (size_t i = 0
+            ; ok && (item_ptr = DYNAMIC_ARRAY_GETPTR(*blocked, i))
+            ; i++)
     {
-        AsyncSV* item = av_shift(blocked);
         ok = Async_Trampoline_Scheduler_enqueue_without_dependencies(
-                aTHX_ self, AsyncSV_unwrap(item));
-        AsyncSV_unref(item);
+                aTHX_ self, *item_ptr);
     }
 
     if (!ok)
         croak("could not unblock items");
+
+    while (DYNAMIC_ARRAY_SIZE(*blocked))
+    {
+        Async* item;
+        DYNAMIC_ARRAY_POP(item, Async*, *blocked);
+        Async_unref(item);
+    }
 }
