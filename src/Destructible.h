@@ -7,12 +7,12 @@
 #define MAKE_DESTRUCTIBLE(vtable_ptr, data) \
     ((Destructible) { (void*) data, vtable_ptr })
 
-typedef struct Destructible_Vtable {
+typedef struct {
     void (*destroy)(void *data);
     void* (*copy)(void* source);
 } const Destructible_Vtable;
 
-typedef struct Destructible {
+typedef struct {
     void* data;
     Destructible_Vtable* vtable;
 } Destructible;
@@ -72,7 +72,7 @@ Destructible_clear(
     self->vtable->destroy(self->data);
 }
 
-typedef struct DestructibleTuple {
+typedef struct {
     Destructible_Vtable* vtable;
     size_t size;
     void* data[];
@@ -88,7 +88,7 @@ DestructibleTuple_new(
     assert(vtable->copy);
     assert(vtable->destroy);
 
-    DestructibleTuple* self = malloc(
+    DestructibleTuple* self = (DestructibleTuple*) malloc(
             sizeof(DestructibleTuple) + size * sizeof(void*));
 
     if (self == NULL)
@@ -134,7 +134,7 @@ DestructibleTuple_copy(
     Destructible_Vtable* vtable = orig->vtable;
     assert(vtable);
 
-    DestructibleTuple* self = malloc(
+    DestructibleTuple* self = (DestructibleTuple*) malloc(
             sizeof(DestructibleTuple) + size * sizeof(void*));
 
     if (self == NULL)

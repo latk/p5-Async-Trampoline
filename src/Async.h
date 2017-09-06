@@ -6,6 +6,10 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef ASYNC_TRAMPOLINE_DEBUG
 #define ASYNC_TRAMPOLINE_DEBUG 0
 #define ASYNC_LOG_DEBUG(format, ...) do {} while (0)
@@ -366,3 +370,6 @@ void
 Async_run_until_completion(
         Async*  async);
 
+#ifdef __cplusplus
+}
+#endif

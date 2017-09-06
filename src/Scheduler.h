@@ -8,6 +8,10 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct Async_Trampoline_Scheduler Async_Trampoline_Scheduler;
 
 /** Create a new Scheduler.
@@ -94,3 +98,7 @@ Async_Trampoline_Scheduler_complete(
         pTHX_
         Async_Trampoline_Scheduler* self,
         Async* async);
+
+#ifdef __cplusplus
+}
+#endif

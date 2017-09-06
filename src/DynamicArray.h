@@ -5,7 +5,7 @@
 #ifndef DYNAMIC_ARRAY_DEPENDENCY_REALLOC
 #include <stdlib.h>
 #define DYNAMIC_ARRAY_DEPENDENCY_REALLOC(orig, TValue, n) \
-    realloc(orig, sizeof(TValue) * n)
+    ((TValue*) realloc(orig, sizeof(TValue) * n))
 #endif /* ifndef DYNAMIC_ARRAY_DEPENDENCY_REALLOC(orig, TValue, n) */
 
 #ifndef DYNAMIC_ARRAY_DEPENDENCY_MZERO

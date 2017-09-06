@@ -93,7 +93,7 @@ Async_Trampoline_Scheduler_new(
         pTHX_
         size_t initial_capacity)
 {
-    Async_Trampoline_Scheduler* self =
+    Async_Trampoline_Scheduler* self = (Async_Trampoline_Scheduler*)
         malloc(sizeof(Async_Trampoline_Scheduler));
 
     if (self == NULL)
@@ -215,7 +215,7 @@ Async_Trampoline_Scheduler_block_on(
     }
     else
     {
-        blocked_list = malloc(sizeof(AsyncList));
+        blocked_list = (AsyncList*) malloc(sizeof(AsyncList));
         *blocked_list = (AsyncList) DYNAMIC_ARRAY_INIT;
         sv_setiv(entry_sv, (IV) blocked_list);
     }
