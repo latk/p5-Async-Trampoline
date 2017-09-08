@@ -4,10 +4,12 @@
 #include "CircularBuffer.h"
 
 #include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
 
 #ifndef ASYNC_TRAMPOLINE_SCHEDULER_DEBUG
 #define ASYNC_TRAMPOLINE_SCHEDULER_DEBUG 0
-#define LOG_DEBUG(pattern, ...) do { } while (0)
+#define LOG_DEBUG(...) do { } while (0)
 #else
 #define ASYNC_TRAMPOLINE_SCHEDULER_DEBUG 1
 #define LOG_DEBUG(...) do {                                                 \
@@ -21,25 +23,22 @@ typedef DYNAMIC_ARRAY(Async*) AsyncList;
 #define ASYNC_FORMAT "<Async 0x%zx %s>"
 #define ASYNC_FORMAT_ARGS(async) (size_t) (async), Async_Type_name((async)->type)
 
-static
-SV*
-Async_key(pTHX_ Async* async)
-{
-    return newSVpvf("0x%zx", (size_t) async);
-    // if in the future custom hash tables are implemented,
-    // consider <https://stackoverflow.com/a/12996028>
-    // or <http://www.isthe.com/chongo/tech/comp/fnv/>
-    // for the hash function.
-}
-
 struct Async_Trampoline_Scheduler {
     size_t refcount;
     CircularBuffer<Async*> runnable_queue;
-    HV* runnable_enqueued;
-    HV* blocked;
+    std::unordered_set<Async*> runnable_enqueued;
+    std::unordered_multimap<Async*, Async*> blocked;
 
     Async_Trampoline_Scheduler(size_t initial_capacity);
     ~Async_Trampoline_Scheduler();
+
+    void ref();
+    void unref();
+
+    void enqueue(Async* async);
+    Async* dequeue();
+    void block_on(Async* dependency_async, Async* blocked_async);
+    void complete(Async* async);
 };
 
 #define SCHEDULER_RUNNABLE_QUEUE_FORMAT                                     \
@@ -53,12 +52,11 @@ struct Async_Trampoline_Scheduler {
     (self).runnable_queue._internal_start(),                                \
     (self).runnable_queue.size(),                                           \
     (self).runnable_queue.capacity(),                                       \
-    HvFILL((self).runnable_enqueued),                                       \
-    HvFILL((self).blocked)
+    (self).runnable_enqueued.size(),                                        \
+    (self).blocked.size()
 
 Async_Trampoline_Scheduler*
 Async_Trampoline_Scheduler_new(
-        pTHX_
         size_t initial_capacity)
 {
     try
@@ -75,15 +73,15 @@ Async_Trampoline_Scheduler::Async_Trampoline_Scheduler(
         size_t initial_capacity) :
     refcount{0},
     runnable_queue{},
-    runnable_enqueued{newHV()},
-    blocked{newHV()}
+    runnable_enqueued{},
+    blocked{}
 {
-    bool ok;
-    runnable_queue.grow(ok, initial_capacity);
-    if (!ok)
-    {
-        throw std::runtime_error("growing circular buffer");
-    }
+    runnable_queue.grow(initial_capacity);
+}
+
+void Async_Trampoline_Scheduler::ref()
+{
+    refcount++;
 }
 
 void
@@ -91,23 +89,23 @@ Async_Trampoline_Scheduler_ref(
         Async_Trampoline_Scheduler* self)
 {
     assert(self != NULL);
+    self->ref();
+}
 
-    self->refcount++;
+void Async_Trampoline_Scheduler::unref()
+{
+    refcount--;
+
+    if (refcount == 0)
+        delete this;
 }
 
 void
 Async_Trampoline_Scheduler_unref(
-        pTHX_
         Async_Trampoline_Scheduler* self)
 {
     assert(self != NULL);
-
-    self->refcount--;
-
-    if (self->refcount != 0)
-        return;
-
-    delete self;
+    self->unref();
 }
 
 Async_Trampoline_Scheduler::~Async_Trampoline_Scheduler()
@@ -116,177 +114,145 @@ Async_Trampoline_Scheduler::~Async_Trampoline_Scheduler()
             "clearing queue: " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
             SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this));
 
+    // clear out remaining enqueued items
     while (runnable_queue.size())
     {
         Async* item = runnable_queue.deq();
         Async_unref(item);
     }
 
-    SvREFCNT_dec(this->runnable_enqueued);
+    // clear out blocked items
+    for (auto it = blocked.begin(); it != blocked.end(); ++it)
+    {
+        Async_unref(it->second);
+        blocked.erase(it);
+    }
+}
 
-    SvREFCNT_dec(this->blocked);
+void Async_Trampoline_Scheduler::enqueue(Async* async)
+{
+    LOG_DEBUG("enqueueing %p into " SCHEDULER_RUNNABLE_QUEUE_FORMAT ": " ASYNC_FORMAT "\n",
+            async,
+            SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this),
+            ASYNC_FORMAT_ARGS(async));
+
+    if (runnable_enqueued.find(async) != runnable_enqueued.end())
+    {
+        LOG_DEBUG("enqueuing skieeped because already in queue\n");
+        return;
+    }
+
+    runnable_queue.enq(async);
+
+    Async_ref(async);
+    runnable_enqueued.insert(async);
+
+    LOG_DEBUG(
+            "    '-> " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
+            SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this));
 }
 
 bool
 Async_Trampoline_Scheduler_enqueue_without_dependencies(
-        pTHX_
         Async_Trampoline_Scheduler* self,
         Async* async)
 {
-    SV* key_sv = sv_2mortal(Async_key(aTHX_ async));
+    assert(self);
+    assert(async);
 
-    LOG_DEBUG("enqueueing key=%s into " SCHEDULER_RUNNABLE_QUEUE_FORMAT ": " ASYNC_FORMAT "\n",
-            SvPV_nolen(key_sv),
-            SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*self),
-            ASYNC_FORMAT_ARGS(async));
-
-    if (hv_exists_ent(self->runnable_enqueued, key_sv, 0))
+    try
     {
-        LOG_DEBUG("enqueueing skipped because already in queue\n");
+        self->enqueue(async);
         return true;
     }
-
-    bool ok;
-    self->runnable_queue.enq_from_cb(ok, [&] { Async_ref(async); return async; });
-
-    if (ok)
-        hv_store_ent(self->runnable_enqueued, key_sv, &PL_sv_undef, 0);
-
-    LOG_DEBUG(
-            "    '-> %s " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
-            (ok ? "succeeded" : "failed"),
-            SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*self));
-
-    return ok;
+    catch (...)
+    {
+        return false;
+    }
 }
 
-void
-Async_Trampoline_Scheduler_block_on(
-        pTHX_
-        Async_Trampoline_Scheduler* self,
-        Async* dependency_async,
-        Async* blocked_async)
+void Async_Trampoline_Scheduler::block_on(
+        Async* dependency_async, Async* blocked_async)
 {
-    SV* key_sv = sv_2mortal(Async_key(dependency_async));
-    STRLEN key_len;
-    const char* key = SvPV(key_sv, key_len);
-
-    SV** maybe_entry_sv = hv_fetch(self->blocked, key, key_len, 1);
-    if (maybe_entry_sv == NULL)
-        croak("hash lookup failed");
-
-    SV* entry_sv = *maybe_entry_sv;
-
-    AsyncList* blocked_list = NULL;
-    if (SvOK(entry_sv)
-            && SvIOK(entry_sv)
-            && (blocked_list = (AsyncList*) SvIV(entry_sv)))
-    {
-        // ok
-    }
-    else
-    {
-        blocked_list = (AsyncList*) malloc(sizeof(AsyncList));
-        *blocked_list = (AsyncList) DYNAMIC_ARRAY_INIT;
-        sv_setiv(entry_sv, (IV) blocked_list);
-    }
-
-    assert(SvIOK(entry_sv));
-
     LOG_DEBUG(
         "dependency of " ASYNC_FORMAT " on " ASYNC_FORMAT "\n",
         ASYNC_FORMAT_ARGS(blocked_async),
         ASYNC_FORMAT_ARGS(dependency_async));
 
-    bool ok;
-    DYNAMIC_ARRAY_PUSH(
-            ok,
-            Async*,
-            *blocked_list,
-            (Async_ref(blocked_async), blocked_async));
+    blocked.insert({dependency_async, blocked_async});
+    Async_ref(blocked_async);
+}
 
-    if (!ok)
-        croak("block list allocation failed");
+void
+Async_Trampoline_Scheduler_block_on(
+        Async_Trampoline_Scheduler* self,
+        Async* dependency_async,
+        Async* blocked_async)
+{
+    assert(self);
+    assert(dependency_async);
+    assert(blocked_async);
+
+    self->block_on(dependency_async, blocked_async);
+}
+
+Async* Async_Trampoline_Scheduler::dequeue()
+{
+    assert(runnable_queue.size());
+
+    Async* async = runnable_queue.deq();
+
+    LOG_DEBUG(
+            "dequeue %p from " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
+            async,
+            SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this));
+
+    auto entry = runnable_enqueued.find(async);
+    if (entry == runnable_enqueued.end())
+    {
+        assert(0 /* dequeued an entry that was not registered in the enqueued set! */);
+    }
+    runnable_enqueued.erase(entry);
+
+    return async;
 }
 
 Async*
 Async_Trampoline_Scheduler_dequeue(
-    pTHX_
     Async_Trampoline_Scheduler* self)
 {
     if (self->runnable_queue.size() == 0)
         return NULL;
 
-    Async* async = self->runnable_queue.deq();
+    return self->dequeue();
+}
 
-    SV* key_sv = sv_2mortal(Async_key(async));
+void Async_Trampoline_Scheduler::complete(Async* async)
+{
+    LOG_DEBUG("completing %p\n", async);
 
-    LOG_DEBUG(
-            "dequeued key=%s from " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
-            SvPV_nolen(key_sv),
-            SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*self));
+    auto count = blocked.count(async);
+    LOG_DEBUG("    '-> %zu dependencies\n", count);
 
-    SV* entry_sv = hv_delete_ent(self->runnable_enqueued, key_sv, 0, 0);
-    if (entry_sv == NULL)
-        croak("dequeued an entry that was not registered in the enqueued set! " ASYNC_FORMAT,
-                ASYNC_FORMAT_ARGS(async));
+    if (count == 0)
+        return;
 
-    return async;
+    for (auto it = blocked.find(async)
+            ; it != blocked.end()
+            ; it = blocked.find(async))
+    {
+        enqueue(it->second);
+        blocked.erase(it);
+    }
 }
 
 void
 Async_Trampoline_Scheduler_complete(
-        pTHX_
         Async_Trampoline_Scheduler* self,
         Async* async)
 {
-    SV* key_sv = sv_2mortal(Async_key(async));
+    assert(self);
+    assert(async);
 
-    LOG_DEBUG("completing key=%s\n", SvPV_nolen(key_sv));
-
-    SV* blocked_sv = hv_delete_ent(self->blocked, key_sv, 0, 0);
-
-    if (blocked_sv == NULL)
-    {
-        LOG_DEBUG("    '-> no dependencies\n");
-        return;
-    }
-
-    if (SvOK(blocked_sv))
-        LOG_DEBUG("    '-> sv=%s\n", SvPV_nolen(blocked_sv));
-    else
-        LOG_DEBUG("    '-> sv=(undef)\n");
-
-    AsyncList* blocked = NULL;
-    if (SvIOK(blocked_sv)
-            && (blocked = (AsyncList*) SvIV(blocked_sv)))
-    {
-        // ok
-    }
-    else
-    {
-        croak("blocked entry was not an array of asyncs");
-    }
-
-    LOG_DEBUG("    '-> %zd dependencies\n", DYNAMIC_ARRAY_SIZE(*blocked));
-
-    bool ok = true;
-    Async** item_ptr = NULL;
-    for (size_t i = 0
-            ; ok && (item_ptr = DYNAMIC_ARRAY_GETPTR(*blocked, i))
-            ; i++)
-    {
-        ok = Async_Trampoline_Scheduler_enqueue_without_dependencies(
-                aTHX_ self, *item_ptr);
-    }
-
-    if (!ok)
-        croak("could not unblock items");
-
-    while (DYNAMIC_ARRAY_SIZE(*blocked))
-    {
-        Async* item;
-        DYNAMIC_ARRAY_POP(item, Async*, *blocked);
-        Async_unref(item);
-    }
+    self->complete(async);
 }

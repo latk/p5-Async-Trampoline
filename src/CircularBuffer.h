@@ -9,6 +9,7 @@
 #endif
 
 #include <utility>
+#include <stdexcept>
 
 template<class TValue>
 class CircularBuffer
@@ -55,19 +56,20 @@ public:
 
     /** Increase the capacity.
      *
-     *  ok: bool LVALUE
-     *      true on success, false if growing the buffer failed.
-     *
      *  newcapacity: size
      *      Must be larger than current capacity().
      *      Should be power-of-2.
      */
-    void grow(bool& ok, size_t newcapacity) noexcept
+    void grow(size_t newcapacity)
     {
         size_t tail_length = capacity() - m_start;
         if (m_size < tail_length)
             tail_length = m_size;
+        bool ok = false;
         BASIC_DYNAMIC_ARRAY_GROW(ok, TValue, m_storage, newcapacity);
+        if (!ok)
+            throw std::runtime_error("could not grow CircularBuffer storage");
+
         // [345_012] --GROW-> [345_012_______] --> [345________012]
         if (ok && m_start > 0 && tail_length > 0)
         {
@@ -81,55 +83,40 @@ public:
 
     /** Enqueue a value, growing the buffer if necessary.
      *
-     *  ok: bool LVALUE
-     *      true on success, false when growing the buffer failed.
      *  value: TValue
      */
     template<class T>
-    void enq(bool& ok, T&& value)
+    void enq(T&& value)
     {
-        ok = 1;
-
         if (size() == capacity())
         {
             size_t newcapacity = next_capacity();
-            grow(ok, newcapacity);
+            grow(newcapacity);
         }
 
-        if (ok)
-        {
-            size_t i = map_index(size());
-            m_storage.data[i] = std::forward<T>(value);
-            m_size++;
-        }
+        size_t i = map_index(size());
+        m_storage.data[i] = std::forward<T>(value);
+        m_size++;
     }
 
     /** Enqueue a value, growing the buffer if necessary.
-     *
-     *  ok: bool LVALUE
-     *      true on success, false when growing the buffer failed.
      *
      *  provider: () -> TValue
      *      invoked to create the value.
      *      Only called when `ok` is true.
      */
     template<class TProvider>
-    void enq_from_cb(bool& ok, TProvider provider)
+    void enq_from_cb(TProvider provider)
     {
-        ok = 1;
-
         if (size() == capacity())
         {
             size_t newcapacity = next_capacity();
-            grow(ok, newcapacity);
+            grow(newcapacity);
         }
 
-        if (ok)
-        {
-            size_t i = map_index(size());
-            m_storage.data[i] = provider();
-            m_size++;
-        }
+        size_t i = map_index(size());
+        m_storage.data[i] = provider();
+        m_size++;
     }
 
     /** Dequeue the oldest value.

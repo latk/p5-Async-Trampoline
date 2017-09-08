@@ -179,6 +179,7 @@ describe q(Scheduler) => sub {
         while (my ($async) = $scheduler->dequeue) {
             push @results, run_until_completion $async;
         }
+        @results = sort @results;
 
         is "@results", "1 2", q(got blocked tasks back);
     };

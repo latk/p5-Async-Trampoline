@@ -2,12 +2,6 @@
 
 #include "Async.h"
 
-/* I hope that one day, these headers are unnecessary */
-#define PERL_NO_GET_CONTEXT
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,7 +16,6 @@ typedef struct Async_Trampoline_Scheduler Async_Trampoline_Scheduler;
  */
 Async_Trampoline_Scheduler*
 Async_Trampoline_Scheduler_new(
-        pTHX_
         size_t initial_capacity);
 
 /** Create a new Scheduler with default capacity.
@@ -31,9 +24,9 @@ Async_Trampoline_Scheduler_new(
  */
 inline
 Async_Trampoline_Scheduler*
-Async_Trampoline_Scheduler_new_with_default_capacity(pTHX_)
+Async_Trampoline_Scheduler_new_with_default_capacity()
 {
-    return Async_Trampoline_Scheduler_new(aTHX_ 32);
+    return Async_Trampoline_Scheduler_new(32);
 }
 
 /** Increment recount.
@@ -52,7 +45,6 @@ Async_Trampoline_Scheduler_ref(
  */
 void
 Async_Trampoline_Scheduler_unref(
-        pTHX_
         Async_Trampoline_Scheduler* self);
 
 /** Enqueue an item as possibly runnable.
@@ -65,7 +57,6 @@ Async_Trampoline_Scheduler_unref(
  */
 bool
 Async_Trampoline_Scheduler_enqueue_without_dependencies(
-        pTHX_
         Async_Trampoline_Scheduler* self,
         Async* async);
 
@@ -83,19 +74,16 @@ Async_Trampoline_Scheduler_enqueue_without_dependencies(
  */
 void
 Async_Trampoline_Scheduler_block_on(
-        pTHX_
         Async_Trampoline_Scheduler* self,
         Async* dependency_async,
         Async* blocked_async);
 
 Async*
 Async_Trampoline_Scheduler_dequeue(
-        pTHX_
         Async_Trampoline_Scheduler* self);
 
 void
 Async_Trampoline_Scheduler_complete(
-        pTHX_
         Async_Trampoline_Scheduler* self,
         Async* async);
 
