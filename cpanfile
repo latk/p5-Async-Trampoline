@@ -4,6 +4,7 @@ on 'build' => sub {
 };
 
 on 'configure' => sub {
+  requires "ExtUtils::CBuilder" => "0.280226";
   requires "Module::Build" => "0.28";
 };
 

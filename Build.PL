@@ -4,14 +4,18 @@ use strict;
 use warnings;
 
 use Module::Build 0.28;
-
+use lib qw{inc}; use MyModuleBuild;
 
 my %module_build_args = (
   "build_requires" => {
     "Module::Build" => "0.28"
   },
   "c_source" => "src",
+  "config" => {
+    "cxxflags" => "-std=c++14"
+  },
   "configure_requires" => {
+    "ExtUtils::CBuilder" => "0.280226",
     "Module::Build" => "0.28"
   },
   "dist_abstract" => "Trampolining functions with async/await syntax",
@@ -20,6 +24,7 @@ my %module_build_args = (
   ],
   "dist_name" => "Async-Trampoline",
   "dist_version" => "0.000001",
+  "extra_linker_flags" => "-lstdc++",
   "license" => "perl",
   "module_name" => "Async::Trampoline",
   "recursive_test_files" => 1
@@ -36,7 +41,7 @@ unless ( eval { Module::Build->VERSION(0.4004) } ) {
   $module_build_args{build_requires} = \%fallback_build_requires;
 }
 
-my $build = Module::Build->new(%module_build_args);
+my $build = MyModuleBuild->new(%module_build_args);
 
 
 $build->create_build_script;
