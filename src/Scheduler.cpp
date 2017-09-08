@@ -3,6 +3,8 @@
 #include "DynamicArray.h"
 #include "CircularBuffer.h"
 
+#include <stdexcept>
+
 #ifndef ASYNC_TRAMPOLINE_SCHEDULER_DEBUG
 #define ASYNC_TRAMPOLINE_SCHEDULER_DEBUG 0
 #define LOG_DEBUG(pattern, ...) do { } while (0)
@@ -14,45 +16,10 @@
 } while (0)
 #endif
 
-typedef SV AsyncSV;
-
 typedef DYNAMIC_ARRAY(Async*) AsyncList;
 
 #define ASYNC_FORMAT "<Async 0x%zx %s>"
 #define ASYNC_FORMAT_ARGS(async) (size_t) (async), Async_Type_name((async)->type)
-
-static
-void
-AsyncSV_ref(pTHX_ AsyncSV* async)
-{
-    SvREFCNT_inc(async);
-}
-
-static
-void
-AsyncSV_unref(pTHX_ AsyncSV* async)
-{
-    SvREFCNT_dec(async);
-}
-
-static
-AsyncSV*
-AsyncSV_wrap(Async* self)
-{
-    SV* sv = newSV(0);
-    sv_setref_pv(sv, "Async::Trampoline", (void*) self);
-    Async_ref(self);
-    return sv;
-}
-
-static
-Async*
-AsyncSV_unwrap(AsyncSV* sv)
-{
-    if (sv_isa(sv, "Async::Trampoline"))
-        return (Async*) SvIV(SvRV(sv));
-    return NULL;
-}
 
 static
 SV*
@@ -65,13 +32,14 @@ Async_key(pTHX_ Async* async)
     // for the hash function.
 }
 
-typedef CIRCULAR_BUFFER(Async*) CircularBuffer_Async;
-
 struct Async_Trampoline_Scheduler {
     size_t refcount;
-    CircularBuffer_Async runnable_queue;
+    CircularBuffer<Async*> runnable_queue;
     HV* runnable_enqueued;
     HV* blocked;
+
+    Async_Trampoline_Scheduler(size_t initial_capacity);
+    ~Async_Trampoline_Scheduler();
 };
 
 #define SCHEDULER_RUNNABLE_QUEUE_FORMAT                                     \
@@ -82,9 +50,9 @@ struct Async_Trampoline_Scheduler {
     "}"
 
 #define SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(self)                          \
-    (self).runnable_queue.start,                                            \
-    (self).runnable_queue.size,                                             \
-    (self).runnable_queue.storage.size,                                     \
+    (self).runnable_queue._internal_start(),                                \
+    (self).runnable_queue.size(),                                           \
+    (self).runnable_queue.capacity(),                                       \
     HvFILL((self).runnable_enqueued),                                       \
     HvFILL((self).blocked)
 
@@ -93,30 +61,29 @@ Async_Trampoline_Scheduler_new(
         pTHX_
         size_t initial_capacity)
 {
-    Async_Trampoline_Scheduler* self = (Async_Trampoline_Scheduler*)
-        malloc(sizeof(Async_Trampoline_Scheduler));
+    try
+    {
+        return new Async_Trampoline_Scheduler{initial_capacity};
+    }
+    catch (...)
+    {
+        return nullptr;
+    }
+}
 
-    if (self == NULL)
-        return NULL;
-
-    self->refcount = 1;
-
-    self->runnable_queue = (CircularBuffer_Async) CIRCULAR_BUFFER_INIT;
-
+Async_Trampoline_Scheduler::Async_Trampoline_Scheduler(
+        size_t initial_capacity) :
+    refcount{0},
+    runnable_queue{},
+    runnable_enqueued{newHV()},
+    blocked{newHV()}
+{
     bool ok;
-    CIRCULAR_BUFFER_GROW(ok, Async*, self->runnable_queue, initial_capacity);
+    runnable_queue.grow(ok, initial_capacity);
     if (!ok)
     {
-        CIRCULAR_BUFFER_FREE(self->runnable_queue);
-        free(self);
-        return NULL;
+        throw std::runtime_error("growing circular buffer");
     }
-
-    self->runnable_enqueued = newHV();
-
-    self->blocked = newHV();
-
-    return self;
 }
 
 void
@@ -140,21 +107,24 @@ Async_Trampoline_Scheduler_unref(
     if (self->refcount != 0)
         return;
 
+    delete self;
+}
+
+Async_Trampoline_Scheduler::~Async_Trampoline_Scheduler()
+{
     LOG_DEBUG(
             "clearing queue: " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
-            SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*self));
+            SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this));
 
-    while (CIRCULAR_BUFFER_SIZE(self->runnable_queue))
+    while (runnable_queue.size())
     {
-        Async* item;
-        CIRCULAR_BUFFER_DEQ(item, self->runnable_queue);
+        Async* item = runnable_queue.deq();
         Async_unref(item);
     }
-    CIRCULAR_BUFFER_FREE(self->runnable_queue);
 
-    SvREFCNT_dec(self->runnable_enqueued);
+    SvREFCNT_dec(this->runnable_enqueued);
 
-    SvREFCNT_dec(self->blocked);
+    SvREFCNT_dec(this->blocked);
 }
 
 bool
@@ -177,7 +147,8 @@ Async_Trampoline_Scheduler_enqueue_without_dependencies(
     }
 
     bool ok;
-    CIRCULAR_BUFFER_ENQ(ok, Async*, self->runnable_queue, (Async_ref(async), async));
+    self->runnable_queue.enq_from_cb(ok, [&] { Async_ref(async); return async; });
+
     if (ok)
         hv_store_ent(self->runnable_enqueued, key_sv, &PL_sv_undef, 0);
 
@@ -243,11 +214,10 @@ Async_Trampoline_Scheduler_dequeue(
     pTHX_
     Async_Trampoline_Scheduler* self)
 {
-    if (CIRCULAR_BUFFER_SIZE(self->runnable_queue) == 0)
+    if (self->runnable_queue.size() == 0)
         return NULL;
 
-    Async* async;
-    CIRCULAR_BUFFER_DEQ(async, self->runnable_queue);
+    Async* async = self->runnable_queue.deq();
 
     SV* key_sv = sv_2mortal(Async_key(async));
 

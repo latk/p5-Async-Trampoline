@@ -8,92 +8,161 @@
     memmove(to, from, sizeof(T) * n)
 #endif
 
-#define CIRCULAR_BUFFER(TValue)                                             \
-    struct {                                                                \
-        BASIC_DYNAMIC_ARRAY(TValue) storage;                                \
-        size_t size;                                                        \
-        size_t start;                                                       \
+#include <utility>
+
+template<class TValue>
+class CircularBuffer
+{
+    BASIC_DYNAMIC_ARRAY(TValue) m_storage;
+    size_t m_size;
+    size_t m_start;
+
+    size_t map_index(size_t i) const { return (m_start + i) % capacity(); }
+
+    size_t next_capacity() const
+    {
+        size_t newcap = 2 * capacity();
+        if (newcap == 0) newcap = 1;
+        return newcap;
     }
 
-#define CIRCULAR_BUFFER_INIT \
-    { BASIC_DYNAMIC_ARRAY_INIT, 0, 0 }
+public:
 
-#define CIRCULAR_BUFFER_FREE(buffer) do {                                   \
-    BASIC_DYNAMIC_ARRAY_FREE((buffer).storage);                             \
-    (buffer).size = 0;                                                      \
-    (buffer).start = 0;                                                     \
-} while (0)
+    CircularBuffer() :
+        m_storage(BASIC_DYNAMIC_ARRAY_INIT),
+        m_size(0),
+        m_start(0)
+    {}
 
-#define CIRCULAR_BUFFER_GROW(ok, TValue, buffer, capacity) do {             \
-    size_t _circular_buffer_start = (buffer).start;                         \
-    size_t _circular_buffer_tail_length =                                   \
-        (buffer).storage.size - _circular_buffer_start;                     \
-    if ((buffer).size < _circular_buffer_tail_length)                       \
-        _circular_buffer_tail_length = (buffer).size;                       \
-    BASIC_DYNAMIC_ARRAY_GROW(ok, TValue, (buffer).storage, capacity);       \
-    /* [345_012] --GROW-> [345_012_______] --> [345________012] */          \
-    if (ok  && (_circular_buffer_start > 0)                                 \
-            && (_circular_buffer_tail_length > 0)) {                        \
-        TValue* _circular_buffer_data = (buffer).storage.data;              \
-        TValue* _circular_buffer_it = &_circular_buffer_data[               \
-            _circular_buffer_start];                                        \
-        TValue* _circular_buffer_target = &_circular_buffer_data[           \
-            (buffer).start =                                                \
-                (buffer).storage.size - _circular_buffer_tail_length];      \
-        CIRCULAR_BUFFER_DEPENDENCY_MEMMOVE(                                 \
-                TValue,                                                     \
-                _circular_buffer_it,                                        \
-                _circular_buffer_target,                                    \
-                _circular_buffer_tail_length);                              \
-    }                                                                       \
-} while (0)
+    ~CircularBuffer()
+    {
+        while (size())
+            deq();
+        BASIC_DYNAMIC_ARRAY_FREE(m_storage);
+        m_size = 0;
+        m_start = 0;
+    }
 
-#define CIRCULAR_BUFFER_SIZE(buffer)                                        \
-    ((buffer).size)
+    /** Number of enqueued elements.
+     */
+    size_t size() const { return m_size; }
 
-/** Enqueue a value, growing the buffer if necessary.
- *
- *  ok: bool LVALUE
- *      true on success, false when growing the buffer failed.
- *  TValue: TYPE
- *      Value-Type of the buffer.
- *  buffer: CircularBuffer<TValue>
- *      the buffer in which to enqueue.
- *  value: TValue ONCE
- *      the value to enqueue. Not evaluated if "ok" is false. Evaluated once if
- *      "ok" is true.
- *  returns: void
- */
-#define CIRCULAR_BUFFER_ENQ(ok, TValue, buffer, value) do {                 \
-    (ok) = 1;                                                               \
-    if ((buffer).size == (buffer).storage.size) {                           \
-        size_t _circular_buffer_newsize = 2 * (buffer).size;                \
-        if (_circular_buffer_newsize == 0) _circular_buffer_newsize = 1;    \
-        CIRCULAR_BUFFER_GROW(                                               \
-                ok, TValue, (buffer), _circular_buffer_newsize);            \
-    }                                                                       \
-    if (ok) {                                                               \
-        size_t _circular_buffer_i =                                         \
-            CIRCULAR_BUFFER_MAP_INDEX(buffer, (buffer).size);               \
-        (buffer).storage.data[_circular_buffer_i] = (value);                \
-        (buffer).size++;                                                    \
-    }                                                                       \
-} while (0)
+    /** Allocated size.
+     */
+    size_t capacity() const { return m_storage.size; }
 
-// precondition: buffer size != 0
-#define CIRCULAR_BUFFER_DEQ(var, buffer) do {                               \
-    (var) = (buffer).storage.data[(buffer).start];                          \
-    (buffer).size--;                                                        \
-    (buffer).start = CIRCULAR_BUFFER_MAP_INDEX(buffer, 1);                  \
-} while (0)
+    size_t _internal_start() const { return m_start; }
 
-// precondition: buffer size != 0
-#define CIRCULAR_BUFFER_DEQ_BACK(var, buffer) do {                          \
-    (buffer).size--;                                                        \
-    size_t _circular_buffer_i = CIRCULAR_BUFFER_MAP_INDEX(                  \
-            buffer, (buffer).size);                                         \
-    (var) = (buffer).storage.data[_circular_buffer_i];                      \
-} while (0)
+    /** Increase the capacity.
+     *
+     *  ok: bool LVALUE
+     *      true on success, false if growing the buffer failed.
+     *
+     *  newcapacity: size
+     *      Must be larger than current capacity().
+     *      Should be power-of-2.
+     */
+    void grow(bool& ok, size_t newcapacity) noexcept
+    {
+        size_t tail_length = capacity() - m_start;
+        if (m_size < tail_length)
+            tail_length = m_size;
+        BASIC_DYNAMIC_ARRAY_GROW(ok, TValue, m_storage, newcapacity);
+        // [345_012] --GROW-> [345_012_______] --> [345________012]
+        if (ok && m_start > 0 && tail_length > 0)
+        {
+            TValue* data = m_storage.data;
+            TValue* it = &data[m_start];
+            TValue* end = it + tail_length;
+            TValue* target = &data[m_start = capacity() - tail_length];
+            while (it != end) *target++ = std::move(*it++);
+        }
+    }
 
-#define CIRCULAR_BUFFER_MAP_INDEX(buffer, i)                                \
-    (((buffer).start + (i)) % (buffer).storage.size)
+    /** Enqueue a value, growing the buffer if necessary.
+     *
+     *  ok: bool LVALUE
+     *      true on success, false when growing the buffer failed.
+     *  value: TValue
+     */
+    template<class T>
+    void enq(bool& ok, T&& value)
+    {
+        ok = 1;
+
+        if (size() == capacity())
+        {
+            size_t newcapacity = next_capacity();
+            grow(ok, newcapacity);
+        }
+
+        if (ok)
+        {
+            size_t i = map_index(size());
+            m_storage.data[i] = std::forward<T>(value);
+            m_size++;
+        }
+    }
+
+    /** Enqueue a value, growing the buffer if necessary.
+     *
+     *  ok: bool LVALUE
+     *      true on success, false when growing the buffer failed.
+     *
+     *  provider: () -> TValue
+     *      invoked to create the value.
+     *      Only called when `ok` is true.
+     */
+    template<class TProvider>
+    void enq_from_cb(bool& ok, TProvider provider)
+    {
+        ok = 1;
+
+        if (size() == capacity())
+        {
+            size_t newcapacity = next_capacity();
+            grow(ok, newcapacity);
+        }
+
+        if (ok)
+        {
+            size_t i = map_index(size());
+            m_storage.data[i] = provider();
+            m_size++;
+        }
+    }
+
+    /** Dequeue the oldest value.
+     *
+     *  Precondition:
+     *      size() != 0
+     */
+    TValue deq()
+    {
+        assert(size());
+
+        TValue val = std::move(m_storage.data[m_start]);
+
+        m_size--;
+        m_start = map_index(1);
+
+        return val;
+    }
+
+    /** Dequeue the newest value.
+     *
+     *  Precondition:
+     *      size() != 0
+     */
+    TValue deq_back()
+    {
+        assert(size());
+
+        m_size--;
+
+        size_t i = map_index(m_size);
+
+        return std::move(m_storage.data[i]);
+    }
+};
+
