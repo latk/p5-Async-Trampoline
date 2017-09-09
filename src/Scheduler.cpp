@@ -2,7 +2,6 @@
 
 #include "CircularBuffer.h"
 
-#include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -118,6 +117,8 @@ public:
 Async_Trampoline_Scheduler::Async_Trampoline_Scheduler(size_t initial_capacity)
     : m_impl{new Async_Trampoline_Scheduler::Impl{initial_capacity}}
 {}
+
+Async_Trampoline_Scheduler::~Async_Trampoline_Scheduler() = default;
 
 auto Async_Trampoline_Scheduler::queue_size() const -> size_t
 {

@@ -10,6 +10,7 @@ private:
     std::unique_ptr<Impl> m_impl;
 public:
     Async_Trampoline_Scheduler(size_t initial_capacity);
+    ~Async_Trampoline_Scheduler();
 
     auto queue_size() const -> size_t;
     auto enqueue(Async* async) -> void;
