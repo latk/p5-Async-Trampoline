@@ -7,7 +7,7 @@
 Async*
 Async_new()
 {
-    Async* self = malloc(sizeof(Async));
+    Async* self = (Async*) malloc(sizeof(Async));
 
     if (!self)
         return NULL;

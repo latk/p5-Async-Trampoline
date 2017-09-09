@@ -21,10 +21,7 @@ destroy_sv_ref(void* sv)
     SvREFCNT_dec((SV*) sv);
 }
 
-static Destructible_Vtable sv_vtable = {
-    .copy       = copy_sv_ref,
-    .destroy    = destroy_sv_ref,
-};
+static Destructible_Vtable sv_vtable { destroy_sv_ref, copy_sv_ref };
 
 static
 Async*
@@ -169,9 +166,9 @@ async_value(...)
         DestructibleTuple* values = DestructibleTuple_new(&sv_vtable, items);
         for (size_t i = 0; i < items; i++)
         {
-            Destructible destructible_value = {
-                .vtable = &sv_vtable,
-                .data   = newSVsv(ST(i)),
+            Destructible destructible_value{
+                newSVsv(ST(i)),
+                &sv_vtable,
             };
             DestructibleTuple_move_into(values, i, &destructible_value);
         }
