@@ -19,7 +19,7 @@ Async_new()
     // by subsequent functions.
     memset((void*) self, 0, sizeof(Async));
 
-    self->type = Async_IS_UNINITIALIZED;
+    self->type = Async_Type::IS_UNINITIALIZED;
     self->refcount = 1;
 
     return self;
@@ -49,7 +49,7 @@ Async_unref(
 
     Async_clear(self);
 
-    assert(self->type == Async_IS_UNINITIALIZED);
+    assert(self->type == Async_Type::IS_UNINITIALIZED);
 
     free(self);
 }
@@ -80,12 +80,12 @@ Async_Ptr_follow(
 {
     assert(self);
 
-    if (self->type != Async_IS_PTR)
+    if (self->type != Async_Type::IS_PTR)
         return self;
 
     // flatten the pointer until we reach something concrete
     Async* ptr = self->as_ptr;
-    while (ptr->type == Async_IS_PTR)
+    while (ptr->type == Async_Type::IS_PTR)
     {
         Async* next = ptr->as_ptr;
         Async_ref(next);

@@ -90,20 +90,20 @@ run_until_completion(async)
 
         async = Async_Ptr_follow(async);
 
-        if (async->type < Async_CATEGORY_COMPLETE)
+        if (async->type < Async_Type::CATEGORY_COMPLETE)
             croak(  "run_until_completion() did not complete the Async "
                     "(type code %d)",
                     async->type);
 
-        if (async->type == Async_IS_CANCEL)
+        if (async->type == Async_Type::IS_CANCEL)
         {
             croak("run_until_completion(): Async was cancelled");
         }
-        else if (async->type == Async_IS_ERROR)
+        else if (async->type == Async_Type::IS_ERROR)
         {
             croak_sv((SV*) async->as_error.data);
         }
-        else if (async->type == Async_IS_VALUE)
+        else if (async->type == Async_Type::IS_VALUE)
         {
             DestructibleTuple* values = async->as_value;
             for (size_t i = 0; i < values->size; i++) {

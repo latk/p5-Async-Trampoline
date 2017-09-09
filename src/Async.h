@@ -18,27 +18,27 @@
 } while (0)
 #endif /* ifndef ASYNC_TRAMPOLINE_DEBUG */
 
-enum Async_Type
+enum class Async_Type
 {
-    Async_IS_UNINITIALIZED,
+    IS_UNINITIALIZED,
 
-    Async_CATEGORY_INITIALIZED,
-    Async_IS_PTR,
-    Async_IS_RAWTHUNK,
-    Async_IS_THUNK,
-    Async_IS_CONCAT,
-    Async_IS_COMPLETE_THEN,
-    Async_IS_RESOLVED_OR,
-    Async_IS_RESOLVED_THEN,
-    Async_IS_VALUE_OR,
-    Async_IS_VALUE_THEN,
+    CATEGORY_INITIALIZED,
+    IS_PTR,
+    IS_RAWTHUNK,
+    IS_THUNK,
+    IS_CONCAT,
+    IS_COMPLETE_THEN,
+    IS_RESOLVED_OR,
+    IS_RESOLVED_THEN,
+    IS_VALUE_OR,
+    IS_VALUE_THEN,
 
-    Async_CATEGORY_COMPLETE,
-    Async_IS_CANCEL,
+    CATEGORY_COMPLETE,
+    IS_CANCEL,
 
-    Async_CATEGORY_RESOLVED,
-    Async_IS_ERROR,
-    Async_IS_VALUE,
+    CATEGORY_RESOLVED,
+    IS_ERROR,
+    IS_VALUE,
 };
 
 inline
@@ -46,23 +46,23 @@ const char*
 Async_Type_name(enum Async_Type type)
 {
     switch (type) {
-        case Async_IS_UNINITIALIZED:        return "Async_IS_UNINITIALIZED";
-        case Async_CATEGORY_INITIALIZED:    return "Async_CATEGORY_INITIALIZED";
-        case Async_IS_PTR:                  return "Async_IS_PTR";
-        case Async_IS_RAWTHUNK:             return "Async_IS_RAWTHUNK";
-        case Async_IS_THUNK:                return "Async_IS_THUNK";
-        case Async_IS_CONCAT:               return "Async_IS_CONCAT";
-        case Async_IS_COMPLETE_THEN:        return "Async_IS_COMPLETE_THEN";
-        case Async_IS_RESOLVED_OR:          return "Async_IS_RESOLVED_OR";
-        case Async_IS_RESOLVED_THEN:        return "Async_IS_RESOLVED_THEN";
-        case Async_IS_VALUE_OR:             return "Async_IS_VALUE_OR";
-        case Async_IS_VALUE_THEN:           return "Async_IS_VALUE_THEN";
-        case Async_CATEGORY_COMPLETE:       return "Async_CATEGORY_COMPLETE";
-        case Async_IS_CANCEL:               return "Async_IS_CANCEL";
-        case Async_CATEGORY_RESOLVED:       return "Async_CATEGORY_RESOLVED";
-        case Async_IS_ERROR:                return "Async_IS_ERROR";
-        case Async_IS_VALUE:                return "Async_IS_VALUE";
-        default:                            return "(unknown)";
+        case Async_Type::IS_UNINITIALIZED:      return "IS_UNINITIALIZED";
+        case Async_Type::CATEGORY_INITIALIZED:  return "CATEGORY_INITIALIZED";
+        case Async_Type::IS_PTR:                return "IS_PTR";
+        case Async_Type::IS_RAWTHUNK:           return "IS_RAWTHUNK";
+        case Async_Type::IS_THUNK:              return "IS_THUNK";
+        case Async_Type::IS_CONCAT:             return "IS_CONCAT";
+        case Async_Type::IS_COMPLETE_THEN:      return "IS_COMPLETE_THEN";
+        case Async_Type::IS_RESOLVED_OR:        return "IS_RESOLVED_OR";
+        case Async_Type::IS_RESOLVED_THEN:      return "IS_RESOLVED_THEN";
+        case Async_Type::IS_VALUE_OR:           return "IS_VALUE_OR";
+        case Async_Type::IS_VALUE_THEN:         return "IS_VALUE_THEN";
+        case Async_Type::CATEGORY_COMPLETE:     return "CATEGORY_COMPLETE";
+        case Async_Type::IS_CANCEL:             return "IS_CANCEL";
+        case Async_Type::CATEGORY_RESOLVED:     return "CATEGORY_RESOLVED";
+        case Async_Type::IS_ERROR:              return "IS_ERROR";
+        case Async_Type::IS_VALUE:              return "IS_VALUE";
+        default:                                return "(unknown)";
     }
 }
 
@@ -108,7 +108,11 @@ struct Async
         DestructibleTuple*              as_value;
     };
 
-    Async() : type{Async_IS_UNINITIALIZED}, refcount{1}, as_ptr{nullptr} {}
+    Async() :
+        type{Async_Type::IS_UNINITIALIZED},
+        refcount{1},
+        as_ptr{nullptr}
+    { }
     ~Async();
 };
 
@@ -127,7 +131,7 @@ Async_unref(Async* self);
 
 //{{{ Initialization: Async_X_init()
 //
-// Async_IS_UNINITIALIZED -> Async_IS_X
+// IS_UNINITIALIZED -> IS_X
 
 void
 Async_Ptr_init(
@@ -202,7 +206,7 @@ Async_Value_init(
 
 //{{{ Move initialization: Async_X_init_move()
 //
-// (Async_IS_UNINITIALIZED, Async_IS_X) -> (Async_IS_X, Async_IS_UNINITIALIZED)
+// (IS_UNINITIALIZED, IS_X) -> (IS_X, IS_UNINITIALIZED)
 
 void
 Async_Ptr_init_move(
@@ -268,7 +272,7 @@ Async_Value_init_move(
 
 //{{{ Clearing: Async_X_clear()
 //
-// Async_IS_X -> Async_IS_UNINITIALIZED
+// IS_X -> IS_UNINITIALIZED
 
 void
 Async_clear(

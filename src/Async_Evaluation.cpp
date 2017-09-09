@@ -52,7 +52,7 @@ Async_run_until_completion(
 
         if (top != next && top != blocked)
         {
-            assert(Async_has_category(top, Async_CATEGORY_COMPLETE));
+            assert(Async_has_category(top, Async_Type::CATEGORY_COMPLETE));
             scheduler.complete(top);
         }
 
@@ -72,13 +72,13 @@ Async_RawThunk_eval(
         Async** blocked)
 {
     assert(self);
-    assert(self->type == Async_IS_RAWTHUNK);
+    assert(self->type == Async_Type::IS_RAWTHUNK);
 
     assert(0);  // TODO not implemented
 }
 
 #define ENSURE_DEPENDENCY(self, dependency) do {                            \
-    if (!Async_has_category((dependency), Async_CATEGORY_COMPLETE))         \
+    if (!Async_has_category((dependency), Async_Type::CATEGORY_COMPLETE))         \
         return EVAL_RETURN((dependency), (self));                           \
 } while (0)
 
@@ -90,7 +90,7 @@ Async_Thunk_eval(
         Async** blocked)
 {
     assert(self);
-    assert(self->type == Async_IS_THUNK);
+    assert(self->type == Async_Type::IS_THUNK);
 
     ASYNC_LOG_DEBUG(
             "running Thunk %p: callback=%p context.data=%p dependency=%p\n",
@@ -108,18 +108,18 @@ Async_Thunk_eval(
 
         ENSURE_DEPENDENCY(self, dependency);
 
-        if (!Async_has_category(dependency, Async_CATEGORY_COMPLETE))
+        if (!Async_has_category(dependency, Async_Type::CATEGORY_COMPLETE))
         {
             return EVAL_RETURN(dependency, self);
         }
 
-        if (!Async_has_type(dependency, Async_IS_VALUE))
+        if (!Async_has_type(dependency, Async_Type::IS_VALUE))
         {
             Async_unify(self, dependency);
             return EVAL_RETURN(NULL, NULL);
         }
 
-        assert(dependency->type == Async_IS_VALUE);
+        assert(dependency->type == Async_Type::IS_VALUE);
         values = dependency->as_value;
     }
 
@@ -151,14 +151,14 @@ Async_Concat_eval(
         Async** blocked)
 {
     assert(self);
-    assert(self->type == Async_IS_CONCAT);
+    assert(self->type == Async_Type::IS_CONCAT);
 
     Async* left     = Async_Ptr_fold(&self->as_binary.left);
     Async* right    = Async_Ptr_fold(&self->as_binary.right);
 
     Async* selected;
-    if (    (selected = select_if_either_has_type(left, right, Async_IS_CANCEL))
-        ||  (selected = select_if_either_has_type(left, right, Async_IS_ERROR)))
+    if (    (selected = select_if_either_has_type(left, right, Async_Type::IS_CANCEL))
+        ||  (selected = select_if_either_has_type(left, right, Async_Type::IS_ERROR)))
     {
         Async_unify(self, selected);
         return EVAL_RETURN(NULL, NULL);
@@ -167,8 +167,8 @@ Async_Concat_eval(
     ENSURE_DEPENDENCY(self, left);
     ENSURE_DEPENDENCY(self, right);
 
-    assert(left->type   == Async_IS_VALUE);
-    assert(right->type  == Async_IS_VALUE);
+    assert(left->type   == Async_Type::IS_VALUE);
+    assert(right->type  == Async_Type::IS_VALUE);
 
     assert(left->as_value->vtable == right->as_value->vtable);
 
@@ -263,88 +263,88 @@ Async_eval(
             Async_Type_name(self->type));
 
     switch (self->type) {
-        case Async_IS_UNINITIALIZED:
+        case Async_Type::IS_UNINITIALIZED:
             assert(0);
             break;
 
-        case Async_CATEGORY_INITIALIZED:
+        case Async_Type::CATEGORY_INITIALIZED:
             assert(0);
             break;
-        case Async_IS_PTR:
+        case Async_Type::IS_PTR:
             Async_eval(Async_Ptr_follow(self), next, blocked);
             break;
-        case Async_IS_RAWTHUNK:
+        case Async_Type::IS_RAWTHUNK:
             Async_RawThunk_eval(
                     self, next, blocked);
             break;
-        case Async_IS_THUNK:
+        case Async_Type::IS_THUNK:
             Async_Thunk_eval(
                     self, next, blocked);
             break;
-        case Async_IS_CONCAT:
+        case Async_Type::IS_CONCAT:
             Async_Concat_eval(
                     self, next, blocked);
             break;
-        case Async_IS_COMPLETE_THEN:
+        case Async_Type::IS_COMPLETE_THEN:
             eval_control_flow_op(
                     self,
-                    Async_IS_COMPLETE_THEN,
-                    Async_CATEGORY_COMPLETE,
+                    Async_Type::IS_COMPLETE_THEN,
+                    Async_Type::CATEGORY_COMPLETE,
                     CONTROL_FLOW_THEN,
                     next,
                     blocked);
             break;
-        case Async_IS_RESOLVED_OR:
+        case Async_Type::IS_RESOLVED_OR:
             eval_control_flow_op(
                     self,
-                    Async_IS_RESOLVED_OR,
-                    Async_CATEGORY_RESOLVED,
+                    Async_Type::IS_RESOLVED_OR,
+                    Async_Type::CATEGORY_RESOLVED,
                     CONTROL_FLOW_OR,
                     next,
                     blocked);
             break;
-        case Async_IS_RESOLVED_THEN:
+        case Async_Type::IS_RESOLVED_THEN:
             eval_control_flow_op(
                     self,
-                    Async_IS_RESOLVED_THEN,
-                    Async_CATEGORY_RESOLVED,
+                    Async_Type::IS_RESOLVED_THEN,
+                    Async_Type::CATEGORY_RESOLVED,
                     CONTROL_FLOW_THEN,
                     next,
                     blocked);
             break;
-        case Async_IS_VALUE_OR:
+        case Async_Type::IS_VALUE_OR:
             eval_control_flow_op(
                     self,
-                    Async_IS_VALUE_OR,
-                    Async_IS_VALUE,
+                    Async_Type::IS_VALUE_OR,
+                    Async_Type::IS_VALUE,
                     CONTROL_FLOW_OR,
                     next,
                     blocked);
             break;
-        case Async_IS_VALUE_THEN:
+        case Async_Type::IS_VALUE_THEN:
             eval_control_flow_op(
                     self,
-                    Async_IS_VALUE_THEN,
-                    Async_IS_VALUE,
+                    Async_Type::IS_VALUE_THEN,
+                    Async_Type::IS_VALUE,
                     CONTROL_FLOW_THEN,
                     next,
                     blocked);
             break;
 
-        case Async_CATEGORY_COMPLETE:
+        case Async_Type::CATEGORY_COMPLETE:
             assert(0);
             break;
-        case Async_IS_CANCEL:  // already complete
+        case Async_Type::IS_CANCEL:  // already complete
             EVAL_RETURN(NULL, NULL);
             break;
 
-        case Async_CATEGORY_RESOLVED:
+        case Async_Type::CATEGORY_RESOLVED:
             assert(0);
             break;
-        case Async_IS_ERROR:  // already complete
+        case Async_Type::IS_ERROR:  // already complete
             EVAL_RETURN(NULL, NULL);
             break;
-        case Async_IS_VALUE:  // already complete
+        case Async_Type::IS_VALUE:  // already complete
             EVAL_RETURN(NULL, NULL);
             break;
 
