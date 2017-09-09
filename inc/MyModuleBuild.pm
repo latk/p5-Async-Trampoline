@@ -47,4 +47,19 @@ sub _construct {
     return $self;
 }
 
+sub _infer_xs_spec {
+    my ($self, $file) = @_;
+    my $spec = $self->SUPER::_infer_xs_spec($file);
+
+    # The spec always infers a ".c" file.
+    # Fix it: .xs -> .c, .xs++ -> .cpp
+    $spec->{c_file} =~ s/\.c$/.cpp/ if $file =~ /\.xs\+\+$/;
+
+    return $spec;
+}
+
+sub find_xs_files {
+    shift->_find_file_by_type(qr/xs|xs\+\+/, 'lib');
+}
+
 1;
