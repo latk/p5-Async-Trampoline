@@ -361,8 +361,8 @@ Async_Thunk_init(
     self->type = Async_IS_THUNK;
     self->as_thunk.dependency = dependency;
     self->as_thunk.callback = callback;
-    Destructible_init_move(
-            &self->as_thunk.context, &context);
+    using std::swap;
+    swap(self->as_thunk.context, context);
 }
 
 void
@@ -372,16 +372,16 @@ Async_Thunk_init_move(
 {
     ASSERT_INIT_MOVE(self, other, Async_IS_THUNK);
 
+    using std::swap;
+
     self->type = Async_IS_THUNK;
     other->type = Async_IS_UNINITIALIZED;
 
-    self->as_thunk.dependency = other->as_thunk.dependency;
-    other->as_thunk.dependency = NULL;
+    swap(self->as_thunk.dependency, other->as_thunk.dependency);
 
-    self->as_thunk.callback = other->as_thunk.callback;
-    other->as_thunk.callback = NULL;
+    swap(self->as_thunk.callback, other->as_thunk.callback);
 
-    Destructible_init_move(&self->as_thunk.context, &other->as_thunk.context);
+    swap(self->as_thunk.context, other->as_thunk.context);
 }
 
 void
@@ -398,7 +398,7 @@ Async_Thunk_clear(
     self->type = Async_IS_UNINITIALIZED;
     self->as_thunk.dependency = NULL;
     self->as_thunk.callback = NULL;
-    Destructible_clear(&self->as_thunk.context);
+    self->as_thunk.context.clear();
 }
 
 BINARY_INIT_MOVE_CLEAR(Concat,          Async_IS_CONCAT)
@@ -463,7 +463,9 @@ Async_Error_init_move(
 
     self->type = Async_IS_ERROR;
     other->type = Async_IS_UNINITIALIZED;
-    Destructible_init_move(&self->as_error, &other->as_error);
+
+    using std::swap;
+    swap(self->as_error, other->as_error);
 }
 
 void
@@ -474,7 +476,7 @@ Async_Error_clear(
     assert(self->type == Async_IS_ERROR);
 
     self->type = Async_IS_UNINITIALIZED;
-    Destructible_clear(&self->as_error);
+    self->as_error.clear();
 }
 
 // Value
@@ -494,7 +496,7 @@ Async_Value_init(
                 self, values, size);
         for (size_t i = 0; i < size; i++)
             ASYNC_LOG_DEBUG("  - values %p\n",
-                    DestructibleTuple_at(values, i));
+                    values->at(i));
     }
 
     self->type = Async_IS_VALUE;
@@ -526,5 +528,5 @@ Async_Value_clear(
     self->type = Async_IS_UNINITIALIZED;
 
     if (self->as_value)
-        DestructibleTuple_clear(self->as_value);
+        self->as_value->clear();
 }

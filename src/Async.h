@@ -6,10 +6,6 @@
 #include <assert.h>
 #include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef ASYNC_TRAMPOLINE_DEBUG
 #define ASYNC_TRAMPOLINE_DEBUG 0
 #define ASYNC_LOG_DEBUG(...) do {} while (0)
@@ -111,6 +107,9 @@ struct Async
         Destructible                    as_error;
         DestructibleTuple*              as_value;
     };
+
+    Async() : type{Async_IS_UNINITIALIZED}, refcount{1}, as_ptr{nullptr} {}
+    ~Async();
 };
 
 //{{{ Ownership and Allocation: Async_new(), Async_ref(), Async_unref()
@@ -323,6 +322,8 @@ void
 Async_Value_clear(
         Async* self);
 
+inline Async::~Async() { Async_clear(this); }
+
 //}}}
 
 // Evaluation: Async_X_evaluate()
@@ -369,7 +370,3 @@ Async_has_category(
 void
 Async_run_until_completion(
         Async*  async);
-
-#ifdef __cplusplus
-}
-#endif

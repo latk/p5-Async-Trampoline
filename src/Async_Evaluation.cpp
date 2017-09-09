@@ -172,10 +172,10 @@ Async_Concat_eval(
 
     assert(left->as_value->vtable == right->as_value->vtable);
 
-    Destructible_Vtable* vtable = left->as_value->vtable;
+    auto vtable = left->as_value->vtable;
     size_t size = left->as_value->size + right->as_value->size;
 
-    DestructibleTuple* tuple = DestructibleTuple_new(vtable, size);
+    DestructibleTuple* tuple = DestructibleTuple::create(vtable, size);
 
     // move or copy the values,
     // depending on left/right refcount
@@ -185,15 +185,15 @@ Async_Concat_eval(
     size_t output_i = 0;
     for (size_t source_i = 0; source_i < 2; source_i++) {
         Async* source = sources[source_i];
-        Destructible (*copy_or_move)(DestructibleTuple*, size_t) =
+        Destructible (DestructibleTuple::* copy_or_move)(size_t) =
             (source->refcount == 1)
-            ? DestructibleTuple_move_from
-            : DestructibleTuple_copy_from;
+            ? &DestructibleTuple::move_from
+            : &DestructibleTuple::copy_from;
         DestructibleTuple* input = source->as_value;
         for (size_t input_i = 0; input_i < input->size; input_i++, output_i++)
         {
-            Destructible temp = copy_or_move(input, input_i);
-            DestructibleTuple_move_into(tuple, output_i, &temp);
+            Destructible temp = (input->*copy_or_move)(input_i);
+            tuple->move_into(output_i, std::move(temp));
         }
     }
 

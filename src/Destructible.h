@@ -1,227 +1,167 @@
 #pragma once
 
-#include <assert.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <cassert>
+#include <memory>
 
-#define MAKE_DESTRUCTIBLE(vtable_ptr, data) \
-    ((Destructible) { (void*) data, vtable_ptr })
+struct Destructible_Vtable {
+    using DestroyT = void (*)(void* data);
+    using CopyT = void* (*)(void* data);
 
-typedef struct {
-    void (*destroy)(void *data);
-    void* (*copy)(void* source);
-} const Destructible_Vtable;
+    DestroyT destroy;
+    CopyT copy;
 
-typedef struct {
-    void* data;
-    Destructible_Vtable* vtable;
-} Destructible;
-
-static inline
-void
-Destructible_init(
-       Destructible*           self,
-        void*                   data,
-        Destructible_Vtable*    vtable)
-{
-    assert(self);
-    assert(self->data == NULL);
-    assert(self->vtable == NULL);
-
-    assert(vtable);
-    assert(vtable->destroy);
-    assert(vtable->copy);
-
-    self->data = data;
-    self->vtable = vtable;
-}
-
-static inline
-void
-Destructible_init_move(
-        Destructible*   self,
-        Destructible*   source)
-{
-    Destructible_init(self, source->data, source->vtable);
-    source->data = NULL;
-    source->vtable = NULL;
-}
-
-static inline
-void
-Destructible_init_copy(
-        Destructible*   self,
-        Destructible    source)
-{
-    assert(self);
-    assert(source.vtable);
-
-    void* data_copy = source.vtable->copy(source.data);
-    Destructible_init(self, data_copy, source.vtable);
-}
-
-static inline
-void
-Destructible_clear(
-        Destructible*   self)
-{
-    assert(self);
-    assert(self->vtable);
-    assert(self->vtable->destroy);
-
-    self->vtable->destroy(self->data);
-}
-
-typedef struct {
-    Destructible_Vtable* vtable;
-    size_t size;
-    void* data[];
-} DestructibleTuple;
-
-static inline
-DestructibleTuple*
-DestructibleTuple_new(
-        Destructible_Vtable*    vtable,
-        size_t                  size)
-{
-    assert(vtable);
-    assert(vtable->copy);
-    assert(vtable->destroy);
-
-    DestructibleTuple* self = (DestructibleTuple*) malloc(
-            sizeof(DestructibleTuple) + size * sizeof(void*));
-
-    if (self == NULL)
-        return NULL;
-
-    self->vtable = vtable;
-    self->size = size;
-    for (size_t i = 0; i < size; i++)
-        self->data[i] = NULL;
-
-    return self;
-}
-
-static inline
-void
-DestructibleTuple_clear(
-        DestructibleTuple*  self)
-{
-    assert(self);
-
-    Destructible_Vtable* vtable = self->vtable;
-    assert(vtable);
-    assert(vtable->destroy);
-
-    for (size_t i = 0; i < self->size; i++)
+    Destructible_Vtable(DestroyT destroy, CopyT copy) :
+        destroy{destroy},
+        copy{copy}
     {
-        vtable->destroy(self->data[i]);
-        self->data[i] = NULL;
+        assert(destroy);
+        assert(copy);
+    }
+};
+
+struct Destructible {
+    void*                       data;
+    Destructible_Vtable const*  vtable;
+
+    Destructible(void* data, Destructible_Vtable const* vtable) :
+        data{data},
+        vtable{vtable}
+    {
+        assert(data);
+        assert(vtable);
     }
 
-    free(self);
-}
+    Destructible(Destructible&& other) = default;
 
-static inline
-DestructibleTuple*
-DestructibleTuple_copy(
-        DestructibleTuple*  orig)
-{
-    assert(orig);
+    Destructible(Destructible const& other) :
+        Destructible{other.vtable->copy(other.data), other.vtable}
+    {}
 
-    size_t size = orig->size;
+    auto clear() -> void
+    {
+        if (vtable)
+            vtable->destroy(data);
+        data = nullptr;
+        vtable = nullptr;
+    }
 
-    Destructible_Vtable* vtable = orig->vtable;
-    assert(vtable);
+    ~Destructible()
+    {
+        clear();
+    }
 
-    DestructibleTuple* self = (DestructibleTuple*) malloc(
-            sizeof(DestructibleTuple) + size * sizeof(void*));
+    auto swap(Destructible& other) -> void
+    {
+        using std::swap;
+        swap(data, other.data);
+        swap(vtable, other.vtable);
+    }
 
-    if (self == NULL)
-        return NULL;
+    auto operator= (Destructible const& other) -> Destructible&
+    {
+        clear();
+        Destructible copy = other;
+        swap(copy);
+        return *this;
+    }
 
-    self->vtable = vtable;
-    self->size = size;
-    for (size_t i = 0; i < size; i++)
-        self->data[i] = vtable->copy(orig->data[i]);
+    auto operator= (Destructible&& other) -> Destructible&
+    {
+        clear();
+        swap(other);
+        return *this;
+    }
+};
 
-    return self;
-}
+struct DestructibleTuple {
+    Destructible_Vtable const* vtable;
+    size_t size;
+    void* data[1];
 
-static inline
-void*
-DestructibleTuple_at(
-        DestructibleTuple*  self,
-        size_t              i)
-{
-    assert(self);
-    assert(i < self->size);
-    return self->data[i];
-}
+    static auto create(
+            Destructible_Vtable const* vtable,
+            size_t size)
+        -> DestructibleTuple*
+    {
+        size_t alloc_size = sizeof(DestructibleTuple) - 1;
+        alloc_size += size * sizeof(void*);
 
-static inline
-Destructible
-DestructibleTuple_copy_from(
-        DestructibleTuple*  self,
-        size_t              i)
-{
-    assert(self);
-    assert(self->vtable);
-    assert(self->vtable->copy);
+        char* storage = new char[alloc_size];
+        return new (storage) DestructibleTuple{ vtable, size };
+    }
 
-    void* orig = DestructibleTuple_at(self, i);
-    void* copy = self->vtable->copy(orig);
+    auto clear() -> void
+    {
+        this->~DestructibleTuple();
+    }
 
-    Destructible target = { .data = NULL, .vtable = NULL };
-    Destructible_init(&target, copy, self->vtable);
-    return target;
-}
+    auto copy() const -> DestructibleTuple*
+    {
+        DestructibleTuple* the_copy = create(vtable, size);
+        for (size_t i = 0; i < size; i++)
+            the_copy->data[i] = vtable->copy(data[i]);
 
-static inline
-void
-DestructibleTuple_copy_into(
-        DestructibleTuple*  self,
-        size_t              i,
-        Destructible        source)
-{
-    assert(self);
-    assert(self->vtable == source.vtable);
-    assert(i < self->size);
-    assert(self->data[i] == NULL);
+        return the_copy;
+    }
 
-    self->data[i] = self->vtable->copy(source.data);
-}
+    auto at(size_t i) -> void*
+    {
+        assert(i < size);
+        return data[i];
+    }
 
-static inline
-Destructible
-DestructibleTuple_move_from(
-        DestructibleTuple*  self,
-        size_t              i)
-{
-    assert(self);
+    auto copy_from(size_t i) -> Destructible
+    {
+        return { vtable->copy(at(i)), vtable };
+    }
 
-    Destructible target;
-    target.vtable = self->vtable;
-    target.data = DestructibleTuple_at(self, i);
-    self->data[i] = NULL;
+    auto move_from(size_t i) -> Destructible
+    {
+        assert(i < size);
+        Destructible result { nullptr, vtable };
+        using std::swap;
+        swap(result.data, data[i]);
+        return result;
+    }
 
-    return target;
-}
+    auto copy_into(size_t i, Destructible const& source) -> void
+    {
+        assert(vtable == source.vtable);
+        assert(i < size);
+        assert(data[i] == nullptr);
 
-static inline
-void
-DestructibleTuple_move_into(
-        DestructibleTuple*  self,
-        size_t              i,
-        Destructible*       source)
-{
-    assert(self);
-    assert(source);
-    assert(self->vtable == source->vtable);
-    assert(i < self->size);
-    assert(self->data[i] == NULL);
+        data[i] = vtable->copy(source.data);
+    }
 
-    Destructible temp = { NULL, NULL };
-    Destructible_init_move(&temp, source);
-    self->data[i] = temp.data;
-}
+    auto move_into(size_t i, Destructible&& source) -> void
+    {
+        assert(vtable == source.vtable);
+        assert(i < size);
+        assert(data[i] == nullptr);
+
+        using std::swap;
+        swap(data[i], source.data);
+        source.vtable = nullptr;
+    }
+
+private:
+    DestructibleTuple(Destructible_Vtable const* vtable, size_t size) :
+        vtable{vtable},
+        size{size}
+    {
+        assert(vtable);
+        for (size_t i = 0; i < size; i++)
+            data[i] = nullptr;
+    }
+
+    ~DestructibleTuple()
+    {
+        for (size_t i = 0; i < size; i++)
+        {
+            vtable->destroy(data[i]);
+            data[i] = nullptr;
+        }
+        delete[] reinterpret_cast<char*>(this);
+    }
+
+};
