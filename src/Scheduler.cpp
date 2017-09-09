@@ -1,6 +1,5 @@
 #include "Scheduler.h"
 
-#include "DynamicArray.h"
 #include "CircularBuffer.h"
 
 #include <stdexcept>
@@ -18,42 +17,7 @@
 } while (0)
 #endif
 
-typedef DYNAMIC_ARRAY(Async*) AsyncList;
-
-#define ASYNC_FORMAT "<Async 0x%zx %s>"
-#define ASYNC_FORMAT_ARGS(async) (size_t) (async), Async_Type_name((async)->type)
-
-struct Async_Trampoline_Scheduler {
-    size_t refcount;
-    CircularBuffer<Async*> runnable_queue;
-    std::unordered_set<Async*> runnable_enqueued;
-    std::unordered_multimap<Async*, Async*> blocked;
-
-    Async_Trampoline_Scheduler(size_t initial_capacity);
-    ~Async_Trampoline_Scheduler();
-
-    void ref();
-    void unref();
-
-    void enqueue(Async* async);
-    Async* dequeue();
-    void block_on(Async* dependency_async, Async* blocked_async);
-    void complete(Async* async);
-};
-
-#define SCHEDULER_RUNNABLE_QUEUE_FORMAT                                     \
-    "Scheduler { "                                                          \
-        "queue={ start=%zu size=%ld storage.size=%ld } "                    \
-        "runnable_enqueued=%zu "                                            \
-        "blocked_on=%zu "                                                   \
-    "}"
-
-#define SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(self)                          \
-    (self).runnable_queue._internal_start(),                                \
-    (self).runnable_queue.size(),                                           \
-    (self).runnable_queue.capacity(),                                       \
-    (self).runnable_enqueued.size(),                                        \
-    (self).blocked.size()
+// == The C Interface ==
 
 Async_Trampoline_Scheduler*
 Async_Trampoline_Scheduler_new(
@@ -69,46 +33,144 @@ Async_Trampoline_Scheduler_new(
     }
 }
 
-Async_Trampoline_Scheduler::Async_Trampoline_Scheduler(
-        size_t initial_capacity) :
-    refcount{0},
-    runnable_queue{},
-    runnable_enqueued{},
-    blocked{}
-{
-    runnable_queue.grow(initial_capacity);
-}
-
-void Async_Trampoline_Scheduler::ref()
-{
-    refcount++;
-}
-
-void
-Async_Trampoline_Scheduler_ref(
-        Async_Trampoline_Scheduler* self)
-{
-    assert(self != NULL);
-    self->ref();
-}
-
-void Async_Trampoline_Scheduler::unref()
-{
-    refcount--;
-
-    if (refcount == 0)
-        delete this;
-}
-
 void
 Async_Trampoline_Scheduler_unref(
         Async_Trampoline_Scheduler* self)
 {
     assert(self != NULL);
-    self->unref();
+    delete self;
 }
 
-Async_Trampoline_Scheduler::~Async_Trampoline_Scheduler()
+bool
+Async_Trampoline_Scheduler_enqueue_without_dependencies(
+        Async_Trampoline_Scheduler* self,
+        Async* async)
+{
+    assert(self);
+    assert(async);
+
+    try
+    {
+        self->enqueue(async);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+void
+Async_Trampoline_Scheduler_block_on(
+        Async_Trampoline_Scheduler* self,
+        Async* dependency_async,
+        Async* blocked_async)
+{
+    assert(self);
+    assert(dependency_async);
+    assert(blocked_async);
+
+    self->block_on(dependency_async, blocked_async);
+}
+
+Async*
+Async_Trampoline_Scheduler_dequeue(
+    Async_Trampoline_Scheduler* self)
+{
+    if (self->queue_size() == 0)
+        return nullptr;
+
+    return self->dequeue();
+}
+
+void
+Async_Trampoline_Scheduler_complete(
+        Async_Trampoline_Scheduler* self,
+        Async* async)
+{
+    assert(self);
+    assert(async);
+
+    self->complete(async);
+}
+
+// == The Impl Declaration ==
+
+class Async_Trampoline_Scheduler::Impl {
+    CircularBuffer<Async*> runnable_queue{};
+    std::unordered_set<Async*> runnable_enqueued{};
+    std::unordered_multimap<Async*, Async*> blocked{};
+
+public:
+
+    Impl(size_t initial_capacity);
+    ~Impl();
+
+    auto queue_size() const -> size_t { return runnable_queue.size(); }
+    void enqueue(Async* async);
+    Async* dequeue();
+    void block_on(Async* dependency_async, Async* blocked_async);
+    void complete(Async* async);
+};
+
+// == The Public C++ Interface ==
+
+Async_Trampoline_Scheduler::Async_Trampoline_Scheduler(size_t initial_capacity)
+    : m_impl{new Async_Trampoline_Scheduler::Impl{initial_capacity}}
+{}
+
+auto Async_Trampoline_Scheduler::queue_size() const -> size_t
+{
+    return m_impl->queue_size();
+}
+
+auto Async_Trampoline_Scheduler::enqueue(Async* async) -> void
+{
+    m_impl->enqueue(async);
+}
+
+auto Async_Trampoline_Scheduler::dequeue() -> Async*
+{
+    return m_impl->dequeue();
+}
+
+auto Async_Trampoline_Scheduler::block_on(
+        Async* dependency_async, Async* blocked_async) -> void
+{
+    m_impl->block_on(dependency_async, blocked_async);
+}
+
+auto Async_Trampoline_Scheduler::complete(Async* async) -> void
+{
+    m_impl->complete(async);
+}
+
+// == The Impl implementation ==
+
+#define SCHEDULER_RUNNABLE_QUEUE_FORMAT                                     \
+    "Scheduler { "                                                          \
+        "queue={ start=%zu size=%ld storage.size=%ld } "                    \
+        "runnable_enqueued=%zu "                                            \
+        "blocked_on=%zu "                                                   \
+    "}"
+
+#define SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(self)                          \
+    (self).runnable_queue._internal_start(),                                \
+    (self).runnable_queue.size(),                                           \
+    (self).runnable_queue.capacity(),                                       \
+    (self).runnable_enqueued.size(),                                        \
+    (self).blocked.size()
+
+#define ASYNC_FORMAT "<Async 0x%zx %s>"
+#define ASYNC_FORMAT_ARGS(async) (size_t) (async), Async_Type_name((async)->type)
+
+Async_Trampoline_Scheduler::Impl::Impl(
+        size_t initial_capacity)
+{
+    runnable_queue.grow(initial_capacity);
+}
+
+Async_Trampoline_Scheduler::Impl::~Impl()
 {
     LOG_DEBUG(
             "clearing queue: " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
@@ -129,7 +191,7 @@ Async_Trampoline_Scheduler::~Async_Trampoline_Scheduler()
     }
 }
 
-void Async_Trampoline_Scheduler::enqueue(Async* async)
+void Async_Trampoline_Scheduler::Impl::enqueue(Async* async)
 {
     LOG_DEBUG("enqueueing %p into " SCHEDULER_RUNNABLE_QUEUE_FORMAT ": " ASYNC_FORMAT "\n",
             async,
@@ -152,26 +214,7 @@ void Async_Trampoline_Scheduler::enqueue(Async* async)
             SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this));
 }
 
-bool
-Async_Trampoline_Scheduler_enqueue_without_dependencies(
-        Async_Trampoline_Scheduler* self,
-        Async* async)
-{
-    assert(self);
-    assert(async);
-
-    try
-    {
-        self->enqueue(async);
-        return true;
-    }
-    catch (...)
-    {
-        return false;
-    }
-}
-
-void Async_Trampoline_Scheduler::block_on(
+void Async_Trampoline_Scheduler::Impl::block_on(
         Async* dependency_async, Async* blocked_async)
 {
     LOG_DEBUG(
@@ -183,20 +226,7 @@ void Async_Trampoline_Scheduler::block_on(
     Async_ref(blocked_async);
 }
 
-void
-Async_Trampoline_Scheduler_block_on(
-        Async_Trampoline_Scheduler* self,
-        Async* dependency_async,
-        Async* blocked_async)
-{
-    assert(self);
-    assert(dependency_async);
-    assert(blocked_async);
-
-    self->block_on(dependency_async, blocked_async);
-}
-
-Async* Async_Trampoline_Scheduler::dequeue()
+Async* Async_Trampoline_Scheduler::Impl::dequeue()
 {
     assert(runnable_queue.size());
 
@@ -217,17 +247,7 @@ Async* Async_Trampoline_Scheduler::dequeue()
     return async;
 }
 
-Async*
-Async_Trampoline_Scheduler_dequeue(
-    Async_Trampoline_Scheduler* self)
-{
-    if (self->runnable_queue.size() == 0)
-        return NULL;
-
-    return self->dequeue();
-}
-
-void Async_Trampoline_Scheduler::complete(Async* async)
+void Async_Trampoline_Scheduler::Impl::complete(Async* async)
 {
     LOG_DEBUG("completing %p\n", async);
 
@@ -244,15 +264,4 @@ void Async_Trampoline_Scheduler::complete(Async* async)
         enqueue(it->second);
         blocked.erase(it);
     }
-}
-
-void
-Async_Trampoline_Scheduler_complete(
-        Async_Trampoline_Scheduler* self,
-        Async* async)
-{
-    assert(self);
-    assert(async);
-
-    self->complete(async);
 }

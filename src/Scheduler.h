@@ -3,6 +3,23 @@
 #include "Async.h"
 
 #ifdef __cplusplus
+#include <memory>
+struct Async_Trampoline_Scheduler {
+private:
+    class Impl;
+    std::unique_ptr<Impl> m_impl;
+public:
+    Async_Trampoline_Scheduler(size_t initial_capacity);
+
+    auto queue_size() const -> size_t;
+    auto enqueue(Async* async) -> void;
+    auto dequeue() -> Async*;
+    auto block_on(Async* dependency_async, Async* blocked_async) -> void;
+    auto complete(Async* async) -> void;
+};
+#endif
+
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -29,15 +46,7 @@ Async_Trampoline_Scheduler_new_with_default_capacity()
     return Async_Trampoline_Scheduler_new(32);
 }
 
-/** Increment recount.
- *
- *  self: Async_Trampoline_Scheduler*
- */
-void
-Async_Trampoline_Scheduler_ref(
-        Async_Trampoline_Scheduler* self);
-
-/** Decrement refcount, possibly destroying the object.
+/** Destroy the object.
  *
  *  If the queue still contains items, these will be freed.
  *
