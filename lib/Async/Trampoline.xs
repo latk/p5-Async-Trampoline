@@ -4,7 +4,6 @@
 #include "perl.h"
 #include "XSUB.h"
 
-#include "Scheduler.h"
 #include "Async.h"
 
 static

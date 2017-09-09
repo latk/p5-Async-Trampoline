@@ -101,7 +101,7 @@ Async_unify(
     assert(self);
     assert(other);
 
-    ASYNC_LOG_DEBUG("unify %p with %p", self, other);
+    ASYNC_LOG_DEBUG("unify %p with %p\n", self, other);
 
     Async* unref_me = NULL;
 
@@ -348,7 +348,7 @@ Async_Thunk_init(
         Async*              dependency)
 {
     ASYNC_LOG_DEBUG(
-            "init Async %p to Thunk: callback=%p context.data=%p dependency=%p",
+            "init Async %p to Thunk: callback=%p context.data=%p dependency=%p\n",
             self, callback, context.data, dependency);
 
     ASSERT_INIT(self);
@@ -490,10 +490,10 @@ Async_Value_init(
     {
         size_t size = (values) ? values->size : 0;
         ASYNC_LOG_DEBUG(
-                "init Async %p to Values: values = %p { size = %zu }",
+                "init Async %p to Values: values = %p { size = %zu }\n",
                 self, values, size);
         for (size_t i = 0; i < size; i++)
-            ASYNC_LOG_DEBUG("  - values %p",
+            ASYNC_LOG_DEBUG("  - values %p\n",
                     DestructibleTuple_at(values, i));
     }
 

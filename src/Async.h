@@ -12,12 +12,12 @@ extern "C" {
 
 #ifndef ASYNC_TRAMPOLINE_DEBUG
 #define ASYNC_TRAMPOLINE_DEBUG 0
-#define ASYNC_LOG_DEBUG(format, ...) do {} while (0)
+#define ASYNC_LOG_DEBUG(...) do {} while (0)
 #else
 #include <stdio.h>
 #define ASYNC_TRAMPOLINE_DEBUG 1
-#define ASYNC_LOG_DEBUG(format, ...) do {                                         \
-    fprintf(stderr, "#DEBUG Async: " format "\n", ##__VA_ARGS__);           \
+#define ASYNC_LOG_DEBUG(...) do {                                         \
+    fprintf(stderr, "#DEBUG Async: " __VA_ARGS__);           \
     fflush(stderr);                                                         \
 } while (0)
 #endif /* ifndef ASYNC_TRAMPOLINE_DEBUG */

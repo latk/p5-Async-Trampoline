@@ -1,11 +1,6 @@
 #include "Async.h"
 #include "Scheduler.h"
 
-#define PERL_NO_GET_CONTEXT 1
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-
 inline static
 void
 ref_if_not_null(Async* self)
@@ -21,26 +16,18 @@ void
 Async_run_until_completion(
         Async* async)
 {
-    ASYNC_LOG_DEBUG("loop for Async %p", async);
+    ASYNC_LOG_DEBUG("loop for Async %p\n", async);
 
-    dTHX;
+    Async_Trampoline_Scheduler scheduler{};
 
-    Async_Trampoline_Scheduler* scheduler =
-        Async_Trampoline_Scheduler_new_with_default_capacity(aTHX);
+    scheduler.enqueue(async);
 
-    SAVEDESTRUCTOR(Async_Trampoline_Scheduler_unref, scheduler);
-
-    Async_Trampoline_Scheduler_enqueue_without_dependencies(
-            aTHX_ scheduler, async);
-
-    while (1)
+    while (scheduler.queue_size() > 0)
     {
-        Async* top = Async_Trampoline_Scheduler_dequeue(aTHX_ scheduler);
+        Async* top = scheduler.dequeue();
 
         if (!top)
             break;
-
-        ENTER;
 
         Async trap;
         Async* next = &trap;
@@ -55,28 +42,24 @@ Async_run_until_completion(
 
         if (next)
         {
-            Async_Trampoline_Scheduler_enqueue_without_dependencies(
-                    aTHX_ scheduler, next);
+            scheduler.enqueue(next);
 
             if (blocked)
             {
-                Async_Trampoline_Scheduler_block_on(
-                        aTHX_ scheduler, next, blocked);
+                scheduler.block_on(next, blocked);
             }
         }
 
         if (top != next && top != blocked)
         {
             assert(Async_has_category(top, Async_CATEGORY_COMPLETE));
-            Async_Trampoline_Scheduler_complete(aTHX_ scheduler, top);
+            scheduler.complete(top);
         }
-
-        LEAVE;
 
         Async_unref(top);
     }
 
-    ASYNC_LOG_DEBUG("loop complete");
+    ASYNC_LOG_DEBUG("loop complete\n");
 }
 
 // Type-specific cases
@@ -110,7 +93,7 @@ Async_Thunk_eval(
     assert(self->type == Async_IS_THUNK);
 
     ASYNC_LOG_DEBUG(
-            "running Thunk %p: callback=%p context.data=%p dependency=%p",
+            "running Thunk %p: callback=%p context.data=%p dependency=%p\n",
             self,
             self->as_thunk.callback,
             self->as_thunk.context.data,
@@ -274,7 +257,7 @@ Async_eval(
         Async** blocked)
 {
     ASYNC_LOG_DEBUG(
-            "running Async %p (%2d %s)",
+            "running Async %p (%2d %s)\n",
             self,
             self->type,
             Async_Type_name(self->type));
@@ -370,7 +353,7 @@ Async_eval(
     }
 
     ASYNC_LOG_DEBUG(
-            "... %p result: next=%p blocked=%p",
+            "... %p result: next=%p blocked=%p\n",
             self,
             *next,
             *blocked);
