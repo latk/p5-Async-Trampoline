@@ -1,10 +1,13 @@
 #include "Async.h"
 
+#include <memory>
+#include <utility>
+
 #define UNUSED(x) (void)(x)
 
 #define BINARY_INIT(name, type)                                             \
-    void Async_ ## name ## _init(Async* self, Async* left, Async* right)    \
-    { binary_init(self, type, left, right); }
+    void Async_ ## name ## _init(Async* self, AsyncRef left, AsyncRef right)\
+    { binary_init(self, type, std::move(left), std::move(right)); }
 
 #define BINARY_INIT_MOVE(name, type)                                        \
     void Async_ ## name ## _init_move(Async* self, Async* other)            \
@@ -205,32 +208,21 @@ void
 binary_init(
         Async*          self,
         enum Async_Type type,
-        Async*          left,
-        Async*          right)
+        AsyncRef        left,
+        AsyncRef        right)
 {
     ASSERT_INIT(self);
     assert(left);
     assert(right);
 
-    self->type = type;
-    self->as_binary.left = &left->ptr_follow();
-    self->as_binary.right = &right->ptr_follow();
-}
-
-static
-void
-binary_init_move(
-        Async*          self,
-        enum Async_Type type,
-        Async*          other)
-{
-    ASSERT_INIT_MOVE(self, other, type);
+    left.fold();
+    right.fold();
 
     self->type = type;
-    other->type = Async_Type::IS_UNINITIALIZED;
-
-    using std::swap;
-    swap(self->as_binary, other->as_binary);
+    new (&self->as_binary) Async_Pair {
+        std::move(left),
+        std::move(right),
+    };
 }
 
 static
@@ -243,22 +235,40 @@ binary_clear(
     assert(self->type == type);
 
     self->type = Async_Type::IS_UNINITIALIZED;
-    self->as_binary.left.clear();
-    self->as_binary.right.clear();
+    self->as_binary.~Async_Pair();
+}
+
+static
+void
+binary_init_move(
+        Async*          self,
+        enum Async_Type type,
+        Async*          other)
+{
+    ASSERT_INIT_MOVE(self, other, type);
+
+    binary_init(
+            self,
+            type,
+            std::move(other->as_binary.left),
+            std::move(other->as_binary.right));
+    binary_clear(other, type);
 }
 
 // Ptr
 
 void
 Async_Ptr_init(
-        Async*  self,
-        Async*  target)
+        Async*      self,
+        AsyncRef    target)
 {
     ASSERT_INIT(self);
     assert(target);
 
+    target.fold();
+
     self->type = Async_Type::IS_PTR;
-    self->as_ptr = &target->ptr_follow();
+    new (&self->as_ptr) AsyncRef { std::move(target) };
 }
 
 void
@@ -268,11 +278,8 @@ Async_Ptr_init_move(
 {
     ASSERT_INIT_MOVE(self, other, Async_Type::IS_PTR);
 
-    self->type = Async_Type::IS_PTR;
-    other->type = Async_Type::IS_UNINITIALIZED;
-
-    using std::swap;
-    swap(self->as_ptr, other->as_ptr);
+    Async_Ptr_init(self, std::move(other->as_ptr));
+    Async_Ptr_clear(other);
 }
 
 void
@@ -283,7 +290,7 @@ Async_Ptr_clear(
     assert(self->type == Async_Type::IS_PTR);
 
     self->type = Async_Type::IS_UNINITIALIZED;
-    self->as_ptr.clear();
+    self->as_ptr.~AsyncRef();
 }
 
 // RawThunk
@@ -331,24 +338,25 @@ Async_Thunk_init(
         Async*              self,
         Async_ThunkCallback callback,
         Destructible        context,
-        Async*              dependency)
+        AsyncRef            dependency)
 {
     ASYNC_LOG_DEBUG(
             "init Async %p to Thunk: callback=%p context.data=%p dependency=%p\n",
-            self, callback, context.data, dependency);
+            self, callback, context.data, dependency.decay());
 
     ASSERT_INIT(self);
     assert(callback);
     assert(context.vtable);
 
     if (dependency)
-        Async_ref(dependency = Async_Ptr_follow(dependency));
+        dependency.fold();
 
     self->type = Async_Type::IS_THUNK;
-    self->as_thunk.dependency = dependency;
-    self->as_thunk.callback = callback;
-    using std::swap;
-    swap(self->as_thunk.context, context);
+    new (&self->as_thunk) Async_Thunk{
+        callback,
+        std::move(context),
+        std::move(dependency),
+    };
 }
 
 void
@@ -358,16 +366,12 @@ Async_Thunk_init_move(
 {
     ASSERT_INIT_MOVE(self, other, Async_Type::IS_THUNK);
 
-    using std::swap;
-
-    self->type = Async_Type::IS_THUNK;
-    other->type = Async_Type::IS_UNINITIALIZED;
-
-    swap(self->as_thunk.dependency, other->as_thunk.dependency);
-
-    swap(self->as_thunk.callback, other->as_thunk.callback);
-
-    swap(self->as_thunk.context, other->as_thunk.context);
+    Async_Thunk_init(
+            self,
+            std::move(other->as_thunk.callback),
+            std::move(other->as_thunk.context),
+            std::move(other->as_thunk.dependency));
+    Async_Thunk_clear(other);
 }
 
 void
@@ -377,14 +381,8 @@ Async_Thunk_clear(
     assert(self);
     assert(self->type == Async_Type::IS_THUNK);
 
-    Async* dependency = self->as_thunk.dependency;
-    if (dependency)
-        Async_unref(dependency);
-
     self->type = Async_Type::IS_UNINITIALIZED;
-    self->as_thunk.dependency = NULL;
-    self->as_thunk.callback = NULL;
-    self->as_thunk.context.clear();
+    self->as_thunk.~Async_Thunk();
 }
 
 BINARY_INIT_MOVE_CLEAR(Concat,          Async_Type::IS_CONCAT)
@@ -437,7 +435,7 @@ Async_Error_init(
     assert(error.vtable);
 
     self->type = Async_Type::IS_ERROR;
-    self->as_error = error;
+    new (&self->as_error) Destructible { std::move(error) };
 }
 
 void
@@ -447,11 +445,8 @@ Async_Error_init_move(
 {
     ASSERT_INIT_MOVE(self, other, Async_Type::IS_ERROR);
 
-    self->type = Async_Type::IS_ERROR;
-    other->type = Async_Type::IS_UNINITIALIZED;
-
-    using std::swap;
-    swap(self->as_error, other->as_error);
+    Async_Error_init(self, std::move(other->as_error));
+    Async_Error_clear(other);
 }
 
 void
@@ -462,7 +457,7 @@ Async_Error_clear(
     assert(self->type == Async_Type::IS_ERROR);
 
     self->type = Async_Type::IS_UNINITIALIZED;
-    self->as_error.clear();
+    self->as_error.~Destructible();
 }
 
 // Value
@@ -497,10 +492,7 @@ Async_Value_init_move(
     ASSERT_INIT_MOVE(self, other, Async_Type::IS_VALUE);
     assert(other->refcount == 1);
 
-    self->type = Async_Type::IS_VALUE;
-    self->as_value = other->as_value;
-    other->as_value = NULL;
-
+    Async_Value_init(self, std::exchange(other->as_value, nullptr));
     Async_Value_clear(other);
 }
 

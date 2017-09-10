@@ -120,13 +120,13 @@ Async_Thunk_eval(
 
 static
 Async*
-select_if_either_has_type(Async* left, Async* right, enum Async_Type type)
+select_if_either_has_type(AsyncRef& left, AsyncRef& right, Async_Type type)
 {
-    if (Async_has_type(left, type))
-        return left;
-    if (Async_has_type(right, type))
-        return right;
-    return NULL;
+    if (left->has_type(type))
+        return left.decay();
+    if (right->has_type(type))
+        return right.decay();
+    return nullptr;
 }
 
 static
@@ -139,15 +139,16 @@ Async_Concat_eval(
     assert(self);
     assert(self->type == Async_Type::IS_CONCAT);
 
-    auto& left     = Async_Ptr_fold(self->as_binary.left);
-    auto& right    = Async_Ptr_fold(self->as_binary.right);
+    auto& left  = self->as_binary.left.fold();
+    auto& right = self->as_binary.right.fold();
 
-    Async* selected;
-    if (    (selected = select_if_either_has_type(left.decay(), right.decay(), Async_Type::IS_CANCEL))
-        ||  (selected = select_if_either_has_type(left.decay(), right.decay(), Async_Type::IS_ERROR)))
+    for (Async_Type type : { Async_Type::IS_CANCEL, Async_Type::IS_ERROR })
     {
-        Async_unify(self, selected);
-        return EVAL_RETURN(NULL, NULL);
+        if(Async* selected  = select_if_either_has_type(left, right, type))
+        {
+            Async_unify(self, selected);
+            return EVAL_RETURN(nullptr, nullptr);
+        }
     }
 
     ENSURE_DEPENDENCY(self, left);
@@ -339,7 +340,7 @@ Async_eval(
     ASYNC_LOG_DEBUG(
             "... %p result: next=%p blocked=%p\n",
             self,
-            *next,
-            *blocked);
+            next,
+            blocked);
 }
 

@@ -190,8 +190,8 @@ inline auto AsyncRef::clear() -> void {
 
 void
 Async_Ptr_init(
-        Async*  self,
-        Async*  target);
+        Async*      self,
+        AsyncRef    target);
 
 void
 Async_RawThunk_init(
@@ -209,39 +209,39 @@ Async_Thunk_init(
 
 void
 Async_Concat_init(
-        Async*  self,
-        Async*  left,
-        Async*  right);
+        Async*      self,
+        AsyncRef    left,
+        AsyncRef    right);
 
 void
 Async_CompleteThen_init(
         Async*  self,
-        Async*  first,
-        Async*  then);
+        AsyncRef    first,
+        AsyncRef    then);
 
 void
 Async_ResolvedOr_init(
-        Async*  self,
-        Async*  first,
-        Async*  orelse);
+        Async*      self,
+        AsyncRef    first,
+        AsyncRef    orelse);
 
 void
 Async_ResolvedThen_init(
-        Async*  self,
-        Async*  first,
-        Async*  then);
+        Async*      self,
+        AsyncRef    first,
+        AsyncRef    then);
 
 void
 Async_ValueOr_init(
-        Async*  self,
-        Async*  first,
-        Async*  orelse);
+        Async*      self,
+        AsyncRef    first,
+        AsyncRef    orelse);
 
 void
 Async_ValueThen_init(
-        Async*  self,
-        Async*  first,
-        Async*  then);
+        Async*      self,
+        AsyncRef    first,
+        AsyncRef    then);
 
 void
 Async_Cancel_init(
