@@ -66,9 +66,43 @@ Async_Type_name(enum Async_Type type)
     }
 }
 
-typedef struct Async Async;
+struct Async;
 
-typedef Async* (*Async_RawThunkCallback)(
+class AsyncRef
+{
+    Async* ptr;
+public:
+    AsyncRef(Async* ptr = nullptr);
+    AsyncRef(AsyncRef const& other) : AsyncRef{other.ptr} {}
+    AsyncRef(AsyncRef&& other) : AsyncRef{} { swap(*this, other); }
+    ~AsyncRef() { clear(); }
+
+    auto clear() -> void;
+
+    friend auto swap(AsyncRef& lhs, AsyncRef& rhs) noexcept -> void
+    {
+        using std::swap;
+        static_assert(noexcept(lhs.ptr, rhs.ptr), "swap must be noexcept");
+        swap(lhs.ptr, rhs.ptr);
+    }
+
+    auto operator=(AsyncRef other) -> AsyncRef&
+    { swap(*this, other); return *this; }
+
+    auto decay()        -> Async*       { return ptr; }
+    auto decay() const  -> Async const* { return ptr; }
+    auto get()          -> Async&       { return *ptr; }
+    auto get() const    -> Async const& { return *ptr; }
+    auto operator*()        -> Async&       { return *ptr; }
+    auto operator*() const  -> Async const& { return *ptr; }
+    auto operator->()       -> Async*       { return ptr; }
+    auto operator->() const -> Async const* { return ptr; }
+    operator bool() const { return ptr; }
+
+    auto fold() -> AsyncRef&;
+};
+
+using Async_RawThunkCallback = Async* (*)(
         Destructible* context,
         Async* value);
 
@@ -79,7 +113,7 @@ struct Async_RawThunk
     Async*                  dependency;
 };
 
-typedef Async* (*Async_ThunkCallback)(
+using Async_ThunkCallback = Async* (*)(
         Destructible*       context,
         DestructibleTuple*  data);
 
@@ -92,8 +126,8 @@ struct Async_Thunk
 
 struct Async_Pair
 {
-    Async* left;
-    Async* right;
+    AsyncRef left;
+    AsyncRef right;
 };
 
 struct Async
@@ -101,7 +135,7 @@ struct Async
     enum Async_Type type;
     size_t refcount;
     union {
-        Async*                          as_ptr;
+        AsyncRef                        as_ptr;
         struct Async_Thunk              as_thunk;
         struct Async_Pair               as_binary;
         Destructible                    as_error;
@@ -114,6 +148,14 @@ struct Async
         as_ptr{nullptr}
     { }
     ~Async();
+
+    auto ptr_follow() -> Async&;
+
+    auto has_category(Async_Type type) -> bool
+    { return ptr_follow().type >= type; }
+
+    auto has_type(Async_Type type) -> bool
+    { return ptr_follow().type == type; }
 };
 
 //{{{ Ownership and Allocation: Async_new(), Async_ref(), Async_unref()
@@ -126,6 +168,17 @@ Async_ref(Async* self);
 
 void
 Async_unref(Async* self);
+
+inline AsyncRef::AsyncRef(Async* ptr) : ptr{ptr} {
+    if (ptr)
+        Async_ref(ptr);
+}
+
+inline auto AsyncRef::clear() -> void {
+    if (ptr)
+        Async_unref(ptr);
+    ptr = nullptr;
+}
 
 //}}}
 
@@ -335,41 +388,47 @@ inline Async::~Async() { Async_clear(this); }
 void
 Async_eval(
         Async*  self,
-        Async** next,
-        Async** blocked);
+        AsyncRef& next,
+        AsyncRef& blocked);
 
 void
 Async_unify(
         Async*  self,
         Async*  other);
 
-Async*
+inline Async*
 Async_Ptr_follow(
-        Async* self);
+        Async* self)
+{ assert(self); return &self->ptr_follow(); }
 
-inline static
-Async*
-Async_Ptr_fold(Async** ptr)
+inline auto AsyncRef::fold() -> AsyncRef&
 {
-    Async* target = Async_Ptr_follow(*ptr);
-    if (target != *ptr)
-    {
-        Async_ref(target);
-        Async_unref(*ptr);
-        *ptr = target;
-    }
-    return *ptr;
+    Async* target = &ptr->ptr_follow();
+    if (target != ptr)
+        *this = target;
+    return *this;
 }
 
+inline static
+AsyncRef&
+Async_Ptr_fold(AsyncRef& ptr)
+{
+    return ptr.fold();
+}
+
+inline
 bool
 Async_has_type(
         Async* self,
-        enum Async_Type type);
+        enum Async_Type type)
+{ assert(self); return self->has_type(type); }
 
+inline
 bool
 Async_has_category(
         Async* self,
-        enum Async_Type category);
+        enum Async_Type category)
+{ assert(self); return self->has_category(category); }
 
 void
 Async_run_until_completion(

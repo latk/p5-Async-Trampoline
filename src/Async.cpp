@@ -54,45 +54,15 @@ Async_unref(
     free(self);
 }
 
-bool
-Async_has_type(
-        Async* self,
-        enum Async_Type type)
+auto Async::ptr_follow() -> Async&
 {
-    assert(self);
-    Async* target = Async_Ptr_follow(self);
-    return target->type == type;
-}
-
-bool
-Async_has_category(
-        Async* self,
-        enum Async_Type category)
-{
-    assert(self);
-    Async* target = Async_Ptr_follow(self);
-    return target->type >= category;
-}
-
-Async*
-Async_Ptr_follow(
-        Async* self)
-{
-    assert(self);
-
-    if (self->type != Async_Type::IS_PTR)
-        return self;
+    if (type != Async_Type::IS_PTR)
+        return *this;
 
     // flatten the pointer until we reach something concrete
-    Async* ptr = self->as_ptr;
+    AsyncRef& ptr = as_ptr;
     while (ptr->type == Async_Type::IS_PTR)
-    {
-        Async* next = ptr->as_ptr;
-        Async_ref(next);
-        Async_unref(ptr);
-        ptr = next;
-    }
-    self->as_ptr = ptr;
+        ptr = ptr->as_ptr;
 
-    return ptr;
+    return ptr.get();
 }

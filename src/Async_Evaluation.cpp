@@ -1,16 +1,8 @@
 #include "Async.h"
 #include "Scheduler.h"
 
-inline static
-void
-ref_if_not_null(Async* self)
-{
-    if (self) Async_ref(self);
-}
-
 #define EVAL_RETURN(next_async, blocked_async) \
-    (void)  (ref_if_not_null(*next = next_async),                           \
-             ref_if_not_null(*blocked = blocked_async))
+    (void)  (next = next_async, blocked = blocked_async)
 
 void
 Async_run_until_completion(
@@ -30,27 +22,27 @@ Async_run_until_completion(
             break;
 
         Async trap;
-        Async* next = &trap;
-        Async* blocked = &trap;
-        Async_eval(top, &next, &blocked);
+        AsyncRef next = &trap;
+        AsyncRef blocked = &trap;
+        Async_eval(top, next, blocked);
 
-        assert(next != &trap);
-        assert(blocked != &trap);
+        assert(next.decay() != &trap);
+        assert(blocked.decay() != &trap);
 
         if (blocked)
             assert(next);
 
         if (next)
         {
-            scheduler.enqueue(next);
+            scheduler.enqueue(next.decay());
 
             if (blocked)
             {
-                scheduler.block_on(next, blocked);
+                scheduler.block_on(next.decay(), blocked.decay());
             }
         }
 
-        if (top != next && top != blocked)
+        if (top != next.decay() && top != blocked.decay())
         {
             assert(Async_has_category(top, Async_Type::CATEGORY_COMPLETE));
             scheduler.complete(top);
@@ -68,8 +60,8 @@ static
 void
 Async_RawThunk_eval(
         Async*  self,
-        Async** next,
-        Async** blocked)
+        AsyncRef& next,
+        AsyncRef& blocked)
 {
     assert(self);
     assert(self->type == Async_Type::IS_RAWTHUNK);
@@ -78,7 +70,7 @@ Async_RawThunk_eval(
 }
 
 #define ENSURE_DEPENDENCY(self, dependency) do {                            \
-    if (!Async_has_category((dependency), Async_Type::CATEGORY_COMPLETE))         \
+    if (!(dependency)->has_category(Async_Type::CATEGORY_COMPLETE))         \
         return EVAL_RETURN((dependency), (self));                           \
 } while (0)
 
@@ -86,8 +78,8 @@ static
 void
 Async_Thunk_eval(
         Async*  self,
-        Async** next,
-        Async** blocked)
+        AsyncRef& next,
+        AsyncRef& blocked)
 {
     assert(self);
     assert(self->type == Async_Type::IS_THUNK);
@@ -147,18 +139,18 @@ static
 void
 Async_Concat_eval(
         Async*  self,
-        Async** next,
-        Async** blocked)
+        AsyncRef& next,
+        AsyncRef& blocked)
 {
     assert(self);
     assert(self->type == Async_Type::IS_CONCAT);
 
-    Async* left     = Async_Ptr_fold(&self->as_binary.left);
-    Async* right    = Async_Ptr_fold(&self->as_binary.right);
+    auto& left     = Async_Ptr_fold(self->as_binary.left);
+    auto& right    = Async_Ptr_fold(self->as_binary.right);
 
     Async* selected;
-    if (    (selected = select_if_either_has_type(left, right, Async_Type::IS_CANCEL))
-        ||  (selected = select_if_either_has_type(left, right, Async_Type::IS_ERROR)))
+    if (    (selected = select_if_either_has_type(left.decay(), right.decay(), Async_Type::IS_CANCEL))
+        ||  (selected = select_if_either_has_type(left.decay(), right.decay(), Async_Type::IS_ERROR)))
     {
         Async_unify(self, selected);
         return EVAL_RETURN(NULL, NULL);
@@ -180,11 +172,9 @@ Async_Concat_eval(
     // move or copy the values,
     // depending on left/right refcount
 
-    Async* sources[] = { left, right };
-
     size_t output_i = 0;
-    for (size_t source_i = 0; source_i < 2; source_i++) {
-        Async* source = sources[source_i];
+    for (Async* source : { left.decay(), right.decay() })
+    {
         Destructible (DestructibleTuple::* copy_or_move)(size_t) =
             (source->refcount == 1)
             ? &DestructibleTuple::move_from
@@ -214,14 +204,14 @@ eval_control_flow_op(
         enum Async_Type self_type,
         enum Async_Type decision_type,
         enum ControlFlow control_flow,
-        Async** next,
-        Async** blocked)
+        AsyncRef& next,
+        AsyncRef& blocked)
 {
     assert(self);
     assert(self->type == self_type);
 
-    Async* left = self->as_binary.left;
-    Async* right = self->as_binary.right;
+    Async* left = self->as_binary.left.decay();
+    Async* right = self->as_binary.right.decay();
 
     ENSURE_DEPENDENCY(self, left);
 
@@ -253,8 +243,8 @@ eval_control_flow_op(
 void
 Async_eval(
         Async*  self,
-        Async** next,
-        Async** blocked)
+        AsyncRef& next,
+        AsyncRef& blocked)
 {
     ASYNC_LOG_DEBUG(
             "running Async %p (%2d %s)\n",

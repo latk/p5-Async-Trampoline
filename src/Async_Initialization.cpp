@@ -212,12 +212,9 @@ binary_init(
     assert(left);
     assert(right);
 
-    Async_ref(left = Async_Ptr_follow(left));
-    Async_ref(right = Async_Ptr_follow(right));
-
     self->type = type;
-    self->as_binary.left = left;
-    self->as_binary.right = right;
+    self->as_binary.left = &left->ptr_follow();
+    self->as_binary.right = &right->ptr_follow();
 }
 
 static
@@ -232,9 +229,8 @@ binary_init_move(
     self->type = type;
     other->type = Async_Type::IS_UNINITIALIZED;
 
-    self->as_binary = other->as_binary;
-    other->as_binary.left = NULL;
-    other->as_binary.right = NULL;
+    using std::swap;
+    swap(self->as_binary, other->as_binary);
 }
 
 static
@@ -246,15 +242,9 @@ binary_clear(
     assert(self);
     assert(self->type == type);
 
-    Async* left = self->as_binary.left;
-    Async* right = self->as_binary.right;
-
     self->type = Async_Type::IS_UNINITIALIZED;
-    self->as_binary.left = NULL;
-    self->as_binary.right = NULL;
-
-    Async_unref(left);
-    Async_unref(right);
+    self->as_binary.left.clear();
+    self->as_binary.right.clear();
 }
 
 // Ptr
@@ -267,10 +257,8 @@ Async_Ptr_init(
     ASSERT_INIT(self);
     assert(target);
 
-    Async_ref(target = Async_Ptr_follow(target));
-
     self->type = Async_Type::IS_PTR;
-    self->as_ptr = target;
+    self->as_ptr = &target->ptr_follow();
 }
 
 void
@@ -283,8 +271,8 @@ Async_Ptr_init_move(
     self->type = Async_Type::IS_PTR;
     other->type = Async_Type::IS_UNINITIALIZED;
 
-    self->as_ptr = other->as_ptr;
-    other->as_ptr = NULL;
+    using std::swap;
+    swap(self->as_ptr, other->as_ptr);
 }
 
 void
@@ -294,10 +282,8 @@ Async_Ptr_clear(
     assert(self);
     assert(self->type == Async_Type::IS_PTR);
 
-    Async_unref(self->as_ptr);
-
     self->type = Async_Type::IS_UNINITIALIZED;
-    self->as_ptr = NULL;
+    self->as_ptr.clear();
 }
 
 // RawThunk
