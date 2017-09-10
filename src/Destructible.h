@@ -1,5 +1,7 @@
 #pragma once
 
+#include "NoexceptSwap.h"
+
 #include <cassert>
 #include <memory>
 
@@ -24,14 +26,15 @@ struct Destructible {
     Destructible_Vtable const*  vtable;
 
     Destructible(void* data, Destructible_Vtable const* vtable) :
-        data{data},
-        vtable{vtable}
+        data{data}, vtable{vtable}
     {
         assert(data);
         assert(vtable);
     }
 
-    Destructible(Destructible&& other) = default;
+    Destructible(Destructible&& other) noexcept :
+        data{nullptr}, vtable{nullptr}
+    { noexcept_swap(*this, other); }
 
     Destructible(Destructible const& other) :
         Destructible{other.vtable->copy(other.data), other.vtable}
@@ -50,25 +53,16 @@ struct Destructible {
         clear();
     }
 
-    auto swap(Destructible& other) -> void
+    friend auto swap(Destructible& lhs, Destructible& rhs) noexcept -> void
     {
-        using std::swap;
-        swap(data, other.data);
-        swap(vtable, other.vtable);
+        noexcept_member_swap(lhs, rhs,
+                &Destructible::data,
+                &Destructible::vtable);
     }
 
-    auto operator= (Destructible const& other) -> Destructible&
+    auto operator= (Destructible other) -> Destructible&
     {
-        clear();
-        Destructible copy = other;
-        swap(copy);
-        return *this;
-    }
-
-    auto operator= (Destructible&& other) -> Destructible&
-    {
-        clear();
-        swap(other);
+        swap(*this, other);
         return *this;
     }
 };
