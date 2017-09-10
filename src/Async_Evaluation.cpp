@@ -243,7 +243,7 @@ Async_eval(
     ASYNC_LOG_DEBUG(
             "running Async %p (%2d %s)\n",
             self,
-            self->type,
+            static_cast<int>(self->type),
             Async_Type_name(self->type));
 
     switch (self->type) {

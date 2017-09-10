@@ -12,7 +12,7 @@ Async_new()
     if (!self)
         return NULL;
 
-    ASYNC_LOG_DEBUG("created new Async at %p", self);
+    ASYNC_LOG_DEBUG("created new Async at %p\n", self);
 
     // Zero out the memory.
     // This is important as zero is seen as "uninitialized"
@@ -45,7 +45,7 @@ Async_unref(
     if (self->refcount)
         return;
 
-    ASYNC_LOG_DEBUG("deleting Async at %p", self);
+    ASYNC_LOG_DEBUG("deleting Async at %p\n", self);
 
     Async_clear(self);
 
