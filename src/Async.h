@@ -1,6 +1,7 @@
 #pragma once
 #include "DynamicArray.h"
 #include "Destructible.h"
+#include "NoexceptSwap.h"
 
 #include <stddef.h>
 #include <assert.h>
@@ -72,22 +73,23 @@ class AsyncRef
 {
     Async* ptr;
 public:
-    AsyncRef(Async* ptr = nullptr);
+    AsyncRef() noexcept : ptr{nullptr} {}
+    AsyncRef(Async* ptr);
     AsyncRef(AsyncRef const& other) : AsyncRef{other.ptr} {}
-    AsyncRef(AsyncRef&& other) : AsyncRef{} { swap(*this, other); }
+    AsyncRef(AsyncRef&& other) noexcept : AsyncRef{}
+    { noexcept_swap(*this, other); }
     ~AsyncRef() { clear(); }
 
     auto clear() -> void;
 
     friend auto swap(AsyncRef& lhs, AsyncRef& rhs) noexcept -> void
     {
-        using std::swap;
-        static_assert(noexcept(lhs.ptr, rhs.ptr), "swap must be noexcept");
-        swap(lhs.ptr, rhs.ptr);
+        noexcept_member_swap(lhs, rhs,
+                &AsyncRef::ptr);
     }
 
-    auto operator=(AsyncRef other) -> AsyncRef&
-    { swap(*this, other); return *this; }
+    auto operator=(AsyncRef other) noexcept -> AsyncRef&
+    { noexcept_swap(*this, other); return *this; }
 
     auto decay()        -> Async*       { return ptr; }
     auto decay() const  -> Async const* { return ptr; }
