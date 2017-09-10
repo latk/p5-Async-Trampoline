@@ -104,26 +104,26 @@ public:
     auto fold() -> AsyncRef&;
 };
 
-using Async_RawThunkCallback = Async* (*)(
-        Destructible* context,
-        Async* value);
+using Async_RawThunkCallback = AsyncRef (*)(
+        Destructible context,
+        AsyncRef value);
 
 struct Async_RawThunk
 {
     Async_RawThunkCallback  callback;
-    Destructible*           context;
-    Async*                  dependency;
+    Destructible            context;
+    AsyncRef                dependency;
 };
 
-using Async_ThunkCallback = Async* (*)(
-        Destructible*       context,
+using Async_ThunkCallback = AsyncRef (*)(
+        Destructible        context,
         DestructibleTuple*  data);
 
 struct Async_Thunk
 {
     Async_ThunkCallback callback;
     Destructible        context;
-    Async*              dependency;
+    AsyncRef            dependency;
 };
 
 struct Async_Pair
@@ -198,14 +198,14 @@ Async_RawThunk_init(
         Async*                  self,
         Async_RawThunkCallback  callback,
         Destructible            context,
-        Async*                  dependency);
+        AsyncRef                dependency);
 
 void
 Async_Thunk_init(
         Async*              self,
         Async_ThunkCallback callback,
         Destructible        context,
-        Async*              dependency);
+        AsyncRef            dependency);
 
 void
 Async_Concat_init(

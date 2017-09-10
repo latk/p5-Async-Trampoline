@@ -91,23 +91,17 @@ Async_Thunk_eval(
             self->as_thunk.context.data,
             self->as_thunk.dependency);
 
-    Async* dependency = self->as_thunk.dependency;
+    AsyncRef dependency = self->as_thunk.dependency;
     DestructibleTuple* values = NULL;
     if (dependency)
     {
-
-        dependency = Async_Ptr_follow(dependency);
+        dependency.fold();
 
         ENSURE_DEPENDENCY(self, dependency);
 
-        if (!Async_has_category(dependency, Async_Type::CATEGORY_COMPLETE))
+        if (!dependency->has_type(Async_Type::IS_VALUE))
         {
-            return EVAL_RETURN(dependency, self);
-        }
-
-        if (!Async_has_type(dependency, Async_Type::IS_VALUE))
-        {
-            Async_unify(self, dependency);
+            Async_unify(self, dependency.decay());
             return EVAL_RETURN(NULL, NULL);
         }
 
@@ -115,13 +109,13 @@ Async_Thunk_eval(
         values = dependency->as_value;
     }
 
-    Async* result = self->as_thunk.callback(&self->as_thunk.context, values);
+    AsyncRef result = self->as_thunk.callback(
+            std::move(self->as_thunk.context), values);
     assert(result);
 
-    Async_unify(self, result);
-    Async_unref(result);
+    Async_unify(self, result.decay());
 
-    return EVAL_RETURN(self, NULL);
+    return EVAL_RETURN(self, nullptr);
 }
 
 static

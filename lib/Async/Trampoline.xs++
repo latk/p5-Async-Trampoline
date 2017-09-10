@@ -24,10 +24,10 @@ destroy_sv_ref(void* sv)
 static Destructible_Vtable sv_vtable { destroy_sv_ref, copy_sv_ref };
 
 static
-Async*
-invoke_cv(Destructible* body_container, DestructibleTuple* args)
+AsyncRef
+invoke_cv(Destructible body_container, DestructibleTuple* args)
 {
-    CV* callback = (CV*) body_container->data;
+    CV* callback = (CV*) body_container.data;
     assert(callback);
 
     if (ASYNC_TRAMPOLINE_DEBUG)
@@ -69,8 +69,7 @@ invoke_cv(Destructible* body_container, DestructibleTuple* args)
     if (!sv_isa(result_sv, "Async::Trampoline"))
         croak("Async callback must return another Async!");
 
-    Async* result = (Async*) SvIV(SvRV(result_sv));
-    Async_ref(result);  // take ownership because result_sv will be destroyed
+    AsyncRef result = (Async*) SvIV(SvRV(result_sv));
 
     FREETMPS;
     LEAVE;
