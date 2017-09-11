@@ -25,7 +25,7 @@ static Destructible_Vtable sv_vtable { destroy_sv_ref, copy_sv_ref };
 
 static
 AsyncRef
-invoke_cv(Destructible body_container, DestructibleTuple* args)
+invoke_cv(Destructible body_container, DestructibleTuple const& args)
 {
     CV* callback = (CV*) body_container.data;
     assert(callback);
@@ -39,7 +39,7 @@ invoke_cv(Destructible body_container, DestructibleTuple* args)
         int line = (location) ? CopLINE(location) : 0;
 
         ASYNC_LOG_DEBUG(
-                "running Perl callback %p: %s() at %s line %d",
+                "running Perl callback %p: %s() at %s line %d\n",
                 callback, name, file, line);
     }
 
@@ -49,12 +49,19 @@ invoke_cv(Destructible body_container, DestructibleTuple* args)
     SAVETMPS;
 
     PUSHMARK(SP);
-    if (args && args->size)
+    if (args.size)
     {
-        EXTEND(SP, args->size);
-        for (size_t i = 0; i < args->size; i++)
-            PUSHs((SV*) args->at(i));
+        EXTEND(SP, args.size);
+        for (auto arg : args)
+        {
+            ASYNC_LOG_DEBUG("  - arg %p\n", arg);
+            PUSHs((SV*) arg);
+        }
         PUTBACK;
+    }
+    else
+    {
+        ASYNC_LOG_DEBUG("  no args\n");
     }
 
     // TODO handle exceptions
@@ -104,11 +111,9 @@ run_until_completion(async)
         }
         else if (async->type == Async_Type::IS_VALUE)
         {
-            DestructibleTuple* values = async->as_value;
-            for (size_t i = 0; i < values->size; i++) {
-                SV* orig_value = (SV*) values->at(i);
-                XPUSHs(sv_2mortal(newSVsv(orig_value)));
-            }
+            DestructibleTuple& values = async->as_value;
+            for (auto value : values)
+                XPUSHs(sv_2mortal(newSVsv((SV*) value)));
         }
         else
         {
@@ -162,18 +167,18 @@ async_value(...)
     PROTOTYPE: @
     CODE:
     {
-        DestructibleTuple* values = DestructibleTuple::create(&sv_vtable, items);
+        DestructibleTuple values{&sv_vtable, (size_t) items};
         for (size_t i = 0; i < items; i++)
         {
             Destructible destructible_value{
                 newSVsv(ST(i)),
                 &sv_vtable,
             };
-            values->move_into(i, std::move(destructible_value));
+            values.set(i, std::move(destructible_value));
         }
 
         Async* self = Async_new();
-        Async_Value_init(self, values);
+        Async_Value_init(self, std::move(values));
         RETVAL = self;
     }
     OUTPUT: RETVAL

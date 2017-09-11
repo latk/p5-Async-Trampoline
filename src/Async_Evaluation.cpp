@@ -89,10 +89,11 @@ Async_Thunk_eval(
             self,
             self->as_thunk.callback,
             self->as_thunk.context.data,
-            self->as_thunk.dependency);
+            self->as_thunk.dependency.decay());
 
     AsyncRef dependency = self->as_thunk.dependency;
-    DestructibleTuple* values = NULL;
+    DestructibleTuple default_value{};
+    DestructibleTuple const* values = &default_value;
     if (dependency)
     {
         dependency.fold();
@@ -106,11 +107,11 @@ Async_Thunk_eval(
         }
 
         assert(dependency->type == Async_Type::IS_VALUE);
-        values = dependency->as_value;
+        values = &dependency->as_value;
     }
 
     AsyncRef result = self->as_thunk.callback(
-            std::move(self->as_thunk.context), values);
+            std::move(self->as_thunk.context), *values);
     assert(result);
 
     Async_unify(self, result.decay());
@@ -157,12 +158,12 @@ Async_Concat_eval(
     assert(left->type   == Async_Type::IS_VALUE);
     assert(right->type  == Async_Type::IS_VALUE);
 
-    assert(left->as_value->vtable == right->as_value->vtable);
+    assert(left->as_value.vtable == right->as_value.vtable);
 
-    auto vtable = left->as_value->vtable;
-    size_t size = left->as_value->size + right->as_value->size;
+    auto vtable = left->as_value.vtable;
+    size_t size = left->as_value.size + right->as_value.size;
 
-    DestructibleTuple* tuple = DestructibleTuple::create(vtable, size);
+    DestructibleTuple tuple {vtable, size};
 
     // move or copy the values,
     // depending on left/right refcount
@@ -174,16 +175,16 @@ Async_Concat_eval(
             (source->refcount == 1)
             ? &DestructibleTuple::move_from
             : &DestructibleTuple::copy_from;
-        DestructibleTuple* input = source->as_value;
-        for (size_t input_i = 0; input_i < input->size; input_i++, output_i++)
+        DestructibleTuple& input = source->as_value;
+        for (size_t input_i = 0; input_i < input.size; input_i++, output_i++)
         {
-            Destructible temp = (input->*copy_or_move)(input_i);
-            tuple->move_into(output_i, std::move(temp));
+            Destructible temp = (input.*copy_or_move)(input_i);
+            tuple.set(output_i, std::move(temp));
         }
     }
 
     Async_Concat_clear(self);
-    Async_Value_init(self, tuple);
+    Async_Value_init(self, std::move(tuple));
     return EVAL_RETURN(NULL, NULL);
 }
 

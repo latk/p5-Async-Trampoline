@@ -115,8 +115,8 @@ struct Async_RawThunk
 };
 
 using Async_ThunkCallback = AsyncRef (*)(
-        Destructible        context,
-        DestructibleTuple*  data);
+        Destructible                context,
+        DestructibleTuple const&    data);
 
 struct Async_Thunk
 {
@@ -140,7 +140,7 @@ struct Async
         struct Async_Thunk              as_thunk;
         struct Async_Pair               as_binary;
         Destructible                    as_error;
-        DestructibleTuple*              as_value;
+        DestructibleTuple               as_value;
     };
 
     Async() :
@@ -254,7 +254,7 @@ Async_Error_init(
 void
 Async_Value_init(
         Async*                          self,
-        DestructibleTuple*              values);
+        DestructibleTuple               values);
 
 //}}}
 

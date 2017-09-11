@@ -465,23 +465,21 @@ Async_Error_clear(
 void
 Async_Value_init(
         Async*                          self,
-        DestructibleTuple*              values)
+        DestructibleTuple               values)
 {
     ASSERT_INIT(self);
 
     if (ASYNC_TRAMPOLINE_DEBUG)
     {
-        size_t size = (values) ? values->size : 0;
         ASYNC_LOG_DEBUG(
                 "init Async %p to Values: values = %p { size = %zu }\n",
-                self, values, size);
-        for (size_t i = 0; i < size; i++)
-            ASYNC_LOG_DEBUG("  - values %p\n",
-                    values->at(i));
+                self, values.data.get(), values.size);
+        for (auto val : values)
+            ASYNC_LOG_DEBUG("  - values %p\n", val);
     }
 
     self->type = Async_Type::IS_VALUE;
-    self->as_value = values;
+    new (&self->as_value) DestructibleTuple{std::move(values)};
 }
 
 void
@@ -492,7 +490,7 @@ Async_Value_init_move(
     ASSERT_INIT_MOVE(self, other, Async_Type::IS_VALUE);
     assert(other->refcount == 1);
 
-    Async_Value_init(self, std::exchange(other->as_value, nullptr));
+    Async_Value_init(self, std::move(other->as_value));
     Async_Value_clear(other);
 }
 
@@ -505,6 +503,5 @@ Async_Value_clear(
 
     self->type = Async_Type::IS_UNINITIALIZED;
 
-    if (self->as_value)
-        self->as_value->clear();
+    self->as_value.~DestructibleTuple();
 }
