@@ -125,7 +125,7 @@ void
 DESTROY(async)
         Async* async;
     CODE:
-        Async_unref(async);
+        async->unref();
 
 Async*
 async(body)
@@ -133,7 +133,7 @@ async(body)
     PROTOTYPE: &
     CODE:
     {
-        Async* self = Async_new();
+        Async* self = &Async::alloc()->ref();
         Async_Thunk_init(
                 self,
                 invoke_cv,
@@ -151,7 +151,7 @@ await(dep, body)
     PROTOTYPE: $&
     CODE:
     {
-        Async* self = Async_new();
+        Async* self = &Async::alloc()->ref();
         Async_Thunk_init(
                 self,
                 invoke_cv,
@@ -177,7 +177,7 @@ async_value(...)
             values.set(i, std::move(destructible_value));
         }
 
-        Async* self = Async_new();
+        Async* self = &Async::alloc()->ref();
         Async_Value_init(self, std::move(values));
         RETVAL = self;
     }
@@ -188,7 +188,7 @@ async_cancel()
     PROTOTYPE:
     CODE:
     {
-        Async* self = Async_new();
+        Async* self = &Async::alloc()->ref();
         Async_Cancel_init(self);
         RETVAL = self;
     }
@@ -201,7 +201,7 @@ async_resolved_or(first, orelse)
     PROTOTYPE: DISABLE
     CODE:
     {
-        Async* self = Async_new();
+        Async* self = &Async::alloc()->ref();
         Async_ResolvedOr_init(self, first, orelse);
         RETVAL = self;
     }

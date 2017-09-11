@@ -48,7 +48,7 @@ Async_run_until_completion(
             scheduler.complete(top);
         }
 
-        Async_unref(top);
+        top->unref();
     }
 
     ASYNC_LOG_DEBUG("loop complete\n");

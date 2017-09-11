@@ -110,7 +110,7 @@ Async_unify(
 
     if (self->type != Async_Type::IS_UNINITIALIZED)
     {
-        Async_ref(unref_me = other);  // in case "other" was owned by "self"
+        (unref_me = other)->ref();  // in case "other" was owned by "self"
         Async_clear(self);
     }
 
@@ -196,7 +196,7 @@ Async_unify(
     }
 
     if (unref_me)
-        Async_unref(unref_me);
+        unref_me->unref();
 
     return;
 }

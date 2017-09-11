@@ -1,57 +1,30 @@
 #include "Async.h"
 
-#include <stdlib.h>
-#include <assert.h>
-#include <string.h>
+#include <cassert>
 
-Async*
-Async_new()
+auto Async::alloc() -> AsyncRef
 {
-    Async* self = (Async*) malloc(sizeof(Async));
+    AsyncRef ref{new Async{}, AsyncRef::no_inc};
 
-    if (!self)
-        return NULL;
+    ASYNC_LOG_DEBUG("created new Async at %p\n", ref.decay());
 
-    ASYNC_LOG_DEBUG("created new Async at %p\n", self);
-
-    // Zero out the memory.
-    // This is important as zero is seen as "uninitialized"
-    // by subsequent functions.
-    memset((void*) self, 0, sizeof(Async));
-
-    self->type = Async_Type::IS_UNINITIALIZED;
-    self->refcount = 1;
-
-    return self;
+    return ref;
 }
 
-void
-Async_ref(
-        Async* self)
+auto Async::unref() -> void
 {
-    assert(self);
+    refcount--;
 
-    self->refcount++;
-}
-
-void
-Async_unref(
-        Async* self)
-{
-    assert(self);
-
-    self->refcount--;
-
-    if (self->refcount)
+    if (refcount)
         return;
 
-    ASYNC_LOG_DEBUG("deleting Async at %p\n", self);
+    ASYNC_LOG_DEBUG("deleting Async at %p\n", this);
 
-    Async_clear(self);
+    Async_clear(this);
 
-    assert(self->type == Async_Type::IS_UNINITIALIZED);
+    assert(type == Async_Type::IS_UNINITIALIZED);
 
-    free(self);
+    delete this;
 }
 
 auto Async::ptr_follow() -> Async&

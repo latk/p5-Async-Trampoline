@@ -71,9 +71,14 @@ struct Async;
 class AsyncRef
 {
     Async* ptr;
+
+    struct NoInc{};
 public:
+    static constexpr NoInc no_inc{};
+
     AsyncRef() noexcept : ptr{nullptr} {}
     AsyncRef(Async* ptr);
+    AsyncRef(Async* ptr, NoInc) : ptr{ptr} {}
     AsyncRef(AsyncRef const& other) : AsyncRef{other.ptr} {}
     AsyncRef(AsyncRef&& other) noexcept : AsyncRef{}
     { noexcept_swap(*this, other); }
@@ -131,11 +136,14 @@ struct Async_Pair
     AsyncRef right;
 };
 
+struct Async_Uninitialized {};
+
 struct Async
 {
     enum Async_Type type;
     size_t refcount;
     union {
+        Async_Uninitialized             as_uninitialized;
         AsyncRef                        as_ptr;
         struct Async_Thunk              as_thunk;
         struct Async_Pair               as_binary;
@@ -150,6 +158,9 @@ struct Async
     { }
     ~Async();
 
+    auto ref() noexcept -> Async& { refcount++; return *this; }
+    auto unref() -> void;
+
     auto ptr_follow() -> Async&;
 
     auto has_category(Async_Type type) -> bool
@@ -157,31 +168,20 @@ struct Async
 
     auto has_type(Async_Type type) -> bool
     { return ptr_follow().type == type; }
+
+    static auto alloc() -> AsyncRef;
 };
 
-//{{{ Ownership and Allocation: Async_new(), Async_ref(), Async_unref()
-
-Async*
-Async_new();
-
-void
-Async_ref(Async* self);
-
-void
-Async_unref(Async* self);
-
-inline AsyncRef::AsyncRef(Async* ptr) : ptr{ptr} {
+inline AsyncRef::AsyncRef(Async* ptr) : AsyncRef{ptr, no_inc} {
     if (ptr)
-        Async_ref(ptr);
+        ptr->ref();
 }
 
 inline auto AsyncRef::clear() -> void {
     if (ptr)
-        Async_unref(ptr);
+        ptr->unref();
     ptr = nullptr;
 }
-
-//}}}
 
 //{{{ Initialization: Async_X_init()
 //

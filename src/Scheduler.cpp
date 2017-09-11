@@ -102,15 +102,12 @@ Async_Trampoline_Scheduler::Impl::~Impl()
 
     // clear out remaining enqueued items
     while (runnable_queue.size())
-    {
-        Async* item = runnable_queue.deq();
-        Async_unref(item);
-    }
+        runnable_queue.deq()->unref();
 
     // clear out blocked items
     for (auto it = blocked.begin(); it != blocked.end(); ++it)
     {
-        Async_unref(it->second);
+        it->second->unref();
         blocked.erase(it);
     }
 }
@@ -130,8 +127,8 @@ void Async_Trampoline_Scheduler::Impl::enqueue(Async* async)
 
     runnable_queue.enq(async);
 
-    Async_ref(async);
     runnable_enqueued.insert(async);
+    async->ref();
 
     LOG_DEBUG(
             "    '-> " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
@@ -147,7 +144,7 @@ void Async_Trampoline_Scheduler::Impl::block_on(
         ASYNC_FORMAT_ARGS(dependency_async));
 
     blocked.insert({dependency_async, blocked_async});
-    Async_ref(blocked_async);
+    blocked_async->ref();
 }
 
 Async* Async_Trampoline_Scheduler::Impl::dequeue()
