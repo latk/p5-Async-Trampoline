@@ -9,14 +9,6 @@
     void Async_ ## name ## _init(Async* self, AsyncRef left, AsyncRef right)\
     { binary_init(self, type, std::move(left), std::move(right)); }
 
-#define BINARY_CLEAR(name, type)                                            \
-    void Async_ ## name ## _clear(Async* self)                              \
-    { binary_clear(self, type); }
-
-#define BINARY_INIT_CLEAR(name, type)                                       \
-    BINARY_INIT(name, type)                                                 \
-    BINARY_CLEAR(name, type)
-
 #define ASSERT_INIT(self) do {                                              \
     assert(self);                                                           \
     assert((self)->type == Async_Type::IS_UNINITIALIZED);                   \
@@ -61,11 +53,16 @@ binary_clear(
 
 // Polymorphic
 
-void
-Async_clear(
-        Async* self)
+void Async_Ptr_clear        (Async* self);
+void Async_RawThunk_clear   (Async* self);
+void Async_Thunk_clear      (Async* self);
+void Async_Cancel_clear     (Async* self);
+void Async_Error_clear      (Async* self);
+void Async_Value_clear      (Async* self);
+
+auto Async::clear() -> void
 {
-    switch (self->type) {
+    switch (type) {
         case Async_Type::IS_UNINITIALIZED:
             break;
 
@@ -73,48 +70,38 @@ Async_clear(
             assert(0);
             break;
         case Async_Type::IS_PTR:
-            Async_Ptr_clear(self);
+            Async_Ptr_clear(this);
             break;
         case Async_Type::IS_RAWTHUNK:
-            Async_RawThunk_clear(self);
+            Async_RawThunk_clear(this);
             break;
         case Async_Type::IS_THUNK:
-            Async_Thunk_clear(self);
+            Async_Thunk_clear(this);
             break;
         case Async_Type::IS_CONCAT:
-            Async_Concat_clear(self);
-            break;
         case Async_Type::IS_COMPLETE_THEN:
-            Async_CompleteThen_clear(self);
-            break;
         case Async_Type::IS_RESOLVED_OR:
-            Async_ResolvedOr_clear(self);
-            break;
         case Async_Type::IS_RESOLVED_THEN:
-            Async_ResolvedThen_clear(self);
-            break;
         case Async_Type::IS_VALUE_OR:
-            Async_ValueOr_clear(self);
-            break;
         case Async_Type::IS_VALUE_THEN:
-            Async_ValueThen_clear(self);
+            binary_clear(this, type);
             break;
 
         case Async_Type::CATEGORY_COMPLETE:
             assert(0);
             break;
         case Async_Type::IS_CANCEL:
-            Async_Cancel_clear(self);
+            Async_Cancel_clear(this);
             break;
 
         case Async_Type::CATEGORY_RESOLVED:
             assert(0);
             break;
         case Async_Type::IS_ERROR:
-            Async_Error_clear(self);
+            Async_Error_clear(this);
             break;
         case Async_Type::IS_VALUE:
-            Async_Value_clear(self);
+            Async_Value_clear(this);
             break;
 
         default:
@@ -298,12 +285,12 @@ Async_Thunk_clear(
     self->as_thunk.~Async_Thunk();
 }
 
-BINARY_INIT_CLEAR(Concat,          Async_Type::IS_CONCAT)
-BINARY_INIT_CLEAR(CompleteThen,    Async_Type::IS_COMPLETE_THEN)
-BINARY_INIT_CLEAR(ResolvedOr,      Async_Type::IS_RESOLVED_OR)
-BINARY_INIT_CLEAR(ResolvedThen,    Async_Type::IS_RESOLVED_THEN)
-BINARY_INIT_CLEAR(ValueOr,         Async_Type::IS_VALUE_OR)
-BINARY_INIT_CLEAR(ValueThen,       Async_Type::IS_VALUE_THEN)
+BINARY_INIT(Concat,          Async_Type::IS_CONCAT)
+BINARY_INIT(CompleteThen,    Async_Type::IS_COMPLETE_THEN)
+BINARY_INIT(ResolvedOr,      Async_Type::IS_RESOLVED_OR)
+BINARY_INIT(ResolvedThen,    Async_Type::IS_RESOLVED_THEN)
+BINARY_INIT(ValueOr,         Async_Type::IS_VALUE_OR)
+BINARY_INIT(ValueThen,       Async_Type::IS_VALUE_THEN)
 
 // Cancel
 

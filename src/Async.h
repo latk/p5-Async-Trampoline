@@ -160,7 +160,7 @@ struct Async
         as_ptr{nullptr}
     { }
     Async(Async&& other) : Async{} { set_from(std::move(other)); }
-    ~Async();
+    ~Async() { clear(); }
 
     auto ref() noexcept -> Async& { refcount++; return *this; }
     auto unref() -> void;
@@ -268,66 +268,6 @@ Async_Value_init(
 
 //}}}
 
-//{{{ Clearing: Async_X_clear()
-//
-// IS_X -> IS_UNINITIALIZED
-
-void
-Async_clear(
-        Async* self);
-
-void
-Async_Ptr_clear(
-        Async* self);
-
-void
-Async_RawThunk_clear(
-        Async* self);
-
-void
-Async_Thunk_clear(
-        Async* self);
-
-void
-Async_Concat_clear(
-        Async* self);
-
-void
-Async_CompleteThen_clear(
-        Async* self);
-
-void
-Async_ResolvedOr_clear(
-        Async* self);
-
-void
-Async_ResolvedThen_clear(
-        Async* self);
-
-void
-Async_ValueOr_clear(
-        Async* self);
-
-void
-Async_ValueThen_clear(
-        Async* self);
-
-void
-Async_Cancel_clear(
-        Async* self);
-
-void
-Async_Error_clear(
-        Async* self);
-
-void
-Async_Value_clear(
-        Async* self);
-
-inline Async::~Async() { Async_clear(this); }
-
-//}}}
-
 // Evaluation: Async_X_evaluate()
 // Incomplete -> Complete
 void
@@ -368,9 +308,6 @@ Async_has_category(
 void
 Async_run_until_completion(
         Async*  async);
-
-inline auto Async::clear() -> void
-{ Async_clear(this); }
 
 inline auto Async::move_if_only_ref_else_ptr() -> Async
 {

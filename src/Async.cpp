@@ -20,7 +20,7 @@ auto Async::unref() -> void
 
     ASYNC_LOG_DEBUG("deleting Async at %p\n", this);
 
-    Async_clear(this);
+    clear();
 
     assert(type == Async_Type::IS_UNINITIALIZED);
 
