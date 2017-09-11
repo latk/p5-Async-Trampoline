@@ -106,6 +106,9 @@ public:
     operator bool() const { return ptr; }
 
     auto fold() -> AsyncRef&;
+
+    auto ptr_with_ownership() -> Async*
+    { return std::exchange(ptr, nullptr); }
 };
 
 using Async_RawThunkCallback = AsyncRef (*)(

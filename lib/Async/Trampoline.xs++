@@ -68,19 +68,31 @@ invoke_cv(Destructible body_container, DestructibleTuple const& args)
         ASYNC_LOG_DEBUG("  no args\n");
     }
 
-    // TODO handle exceptions
-    int count = call_sv((SV*) callback, G_SCALAR);
+    int count = call_sv((SV*) callback, G_SCALAR|G_EVAL);
 
     SPAGAIN;
 
     assert(count == 1);  // safe because scalar context
 
-    SV* result_sv = POPs;
+    AsyncRef result{};
 
-    if (!sv_isa(result_sv, "Async::Trampoline"))
-        croak("Async callback must return another Async!");
+    SV* error = ERRSV;
+    if (SvTRUE(error))
+    {
+        POPs;  // discard scalar return value
+        result = Async::alloc();
+        Destructible error_temp { newSVsv(error), &sv_vtable };
+        Async_Error_init(result.decay(), std::move(error_temp));
+    }
+    else
+    {
+        SV* result_sv = POPs;
 
-    AsyncRef result = (Async*) SvIV(SvRV(result_sv));
+        if (!sv_isa(result_sv, "Async::Trampoline"))
+            croak("Async callback must return another Async!");
+
+        result = (Async*) SvIV(SvRV(result_sv));
+    }
 
     FREETMPS;
     LEAVE;
@@ -100,7 +112,7 @@ run_until_completion(async)
     {
         Async_run_until_completion(async);
 
-        async = Async_Ptr_follow(async);
+        async = &async->ptr_follow();
 
         if (async->type < Async_Type::CATEGORY_COMPLETE)
             croak(  "run_until_completion() did not complete the Async "
@@ -146,14 +158,14 @@ async(body)
         CXX_TRY
     CODE:
     {
-        Async* self = &Async::alloc()->ref();
+        AsyncRef self = Async::alloc();
         Async_Thunk_init(
-                self,
+                self.decay(),
                 invoke_cv,
                 Destructible{body, &sv_vtable},
                 NULL);
         SvREFCNT_inc(body);
-        RETVAL = self;
+        RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
     CLEANUP:
@@ -168,14 +180,14 @@ await(dep, body)
         CXX_TRY
     CODE:
     {
-        Async* self = &Async::alloc()->ref();
+        AsyncRef self = Async::alloc();
         Async_Thunk_init(
-                self,
+                self.decay(),
                 invoke_cv,
                 Destructible{body, &sv_vtable},
                 dep);
         SvREFCNT_inc(body);
-        RETVAL = self;
+        RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
     CLEANUP:
@@ -198,9 +210,26 @@ async_value(...)
             values.set(i, std::move(destructible_value));
         }
 
-        Async* self = &Async::alloc()->ref();
-        Async_Value_init(self, std::move(values));
-        RETVAL = self;
+        AsyncRef self = Async::alloc();
+        Async_Value_init(self.decay(), std::move(values));
+        RETVAL = self.ptr_with_ownership();
+    }
+    OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
+
+Async*
+async_error(message)
+        SV* message
+    PROTOTYPE: $;
+    INIT:
+        CXX_TRY
+    CODE:
+    {
+        Destructible value{ newSVsv(message), &sv_vtable };
+        AsyncRef self = Async::alloc();
+        Async_Error_init(self.decay(), std::move(value));
+        RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
     CLEANUP:
@@ -213,9 +242,9 @@ async_cancel()
         CXX_TRY
     CODE:
     {
-        Async* self = &Async::alloc()->ref();
-        Async_Cancel_init(self);
-        RETVAL = self;
+        AsyncRef self = Async::alloc();
+        Async_Cancel_init(self.decay());
+        RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
     CLEANUP:
@@ -230,9 +259,9 @@ async_resolved_or(first, orelse)
         CXX_TRY
     CODE:
     {
-        Async* self = &Async::alloc()->ref();
-        Async_ResolvedOr_init(self, first, orelse);
-        RETVAL = self;
+        AsyncRef self = Async::alloc();
+        Async_ResolvedOr_init(self.decay(), first, orelse);
+        RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
     CLEANUP:

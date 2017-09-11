@@ -59,7 +59,7 @@ describe q(monad laws) => sub {
     };
 };
 
-describe q(resolved_or) => sub {
+describe q(resolved_or()) => sub {
     it q(returns the first value) => sub {
         my $async = async_value(42)->resolved_or(async_cancel);
         is run_until_completion($async), 42;
@@ -95,7 +95,7 @@ describe q(is_complete()) => sub {
     ok $async->is_complete, "completed async is complete";
 
     ok +(async_cancel)->is_complete, "cancel is complete";
-    # TODO ok +(async_error "error message")->is_complete, "error is complete";
+    ok +(async_error "error message")->is_complete, "error is complete";
     ok +(async_value)->is_complete, "value is complete";
 };
 
@@ -109,7 +109,7 @@ describe q(is_resolved()) => sub {
     ok $async->is_resolved, "completed async is resolved";
 
     ok !(async_cancel)->is_resolved, "cancel is not resolved";
-    # TODO ok +(async_error "error message")->is_resolved, "error is resolved";
+    ok +(async_error "error message")->is_resolved, "error is resolved";
     ok +(async_value)->is_resolved, "value is resolved";
 };
 
@@ -123,7 +123,7 @@ describe q(is_cancelled()) => sub {
     ok $async->is_cancelled, "completed async is cancelled";
 
     ok +(async_cancel)->is_cancelled, "cancel is cancelled";
-    # TODO ok !(async_error "error message")->is_cancelled, "error is not cancelled";
+    ok !(async_error "error message")->is_cancelled, "error is not cancelled";
     ok !(async_value)->is_cancelled, "value is not cancelled";
 };
 
@@ -132,14 +132,13 @@ describe q(is_error()) => sub {
 
     ok !$async->is_error, "async thunk is not error";
 
-    # TODO
-    # eval { $async->run_until_completion };  # throws errors
+    eval { $async->run_until_completion };  # throws errors
 
-    # ok $async->is_error, "completed async is error";
+    ok $async->is_error, "completed async is error";
 
-    # ok !(async_cancel)->is_error, "cancel is not error";
-    # ok +(async_error "error message")->is_error, "error is error";
-    # ok !(async_value)->is_error, "value is not error";
+    ok !(async_cancel)->is_error, "cancel is not error";
+    ok +(async_error "error message")->is_error, "error is error";
+    ok !(async_value)->is_error, "value is not error";
 };
 
 describe q(is_value()) => sub {
@@ -152,8 +151,35 @@ describe q(is_value()) => sub {
     ok $async->is_value, "completed async is value";
 
     ok !(async_cancel)->is_value, "cancel is not value";
-    # TODO ok !(async_error "error message")->is_value, "error is not value";
+    ok !(async_error "error message")->is_value, "error is not value";
     ok +(async_value)->is_value, "value is value";
+};
+
+describe q(errors) => sub {
+    # TODO perhaps retain async_error call location,
+    # instead of throwing from run_until_completion()?
+
+    it q(can be thrown from callbacks) => sub {
+        my $file = __FILE__;
+
+        my ($l, $async) = (__LINE__, async { die "my little error" });
+
+        throws_ok { $async->run_until_completion }
+            qr/\Amy little error at \Q$file\E line $l\.$/;
+
+        ok $async->is_error;
+    };
+
+    it q(can be returned explicitly) => sub {
+        my $file = __FILE__;
+
+        my $async = async { async_error "explicit error message" };
+
+        my $l = __LINE__; throws_ok { $async->run_until_completion }
+            qr/\Aexplicit error message at \Q$file\E line $l\.$/;
+
+        ok $async->is_error;
+    };
 };
 
 done_testing;

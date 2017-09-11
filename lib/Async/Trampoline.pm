@@ -175,10 +175,6 @@ TODO
 
 TODO
 
-=cut
-
-sub async_error($;) { ... }  # TODO
-
 =head2 async_cancel
 
     $async = async_cancel
