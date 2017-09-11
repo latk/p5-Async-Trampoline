@@ -19,9 +19,9 @@
 // == The Impl Declaration ==
 
 class Async_Trampoline_Scheduler::Impl {
-    CircularBuffer<Async*> runnable_queue{};
-    std::unordered_set<Async*> runnable_enqueued{};
-    std::unordered_multimap<Async*, Async*> blocked{};
+    CircularBuffer<AsyncRef> runnable_queue{};
+    std::unordered_set<Async const*> runnable_enqueued{};
+    std::unordered_multimap<Async const*, AsyncRef> blocked{};
 
 public:
 
@@ -29,10 +29,10 @@ public:
     ~Impl();
 
     auto queue_size() const -> size_t { return runnable_queue.size(); }
-    void enqueue(Async* async);
-    Async* dequeue();
-    void block_on(Async* dependency_async, Async* blocked_async);
-    void complete(Async* async);
+    void enqueue(AsyncRef async);
+    AsyncRef dequeue();
+    void block_on(Async const& dependency_async, AsyncRef blocked_async);
+    void complete(Async const& async);
 };
 
 // == The Public C++ Interface ==
@@ -48,23 +48,23 @@ auto Async_Trampoline_Scheduler::queue_size() const -> size_t
     return m_impl->queue_size();
 }
 
-auto Async_Trampoline_Scheduler::enqueue(Async* async) -> void
+auto Async_Trampoline_Scheduler::enqueue(AsyncRef async) -> void
 {
-    m_impl->enqueue(async);
+    m_impl->enqueue(std::move(async));
 }
 
-auto Async_Trampoline_Scheduler::dequeue() -> Async*
+auto Async_Trampoline_Scheduler::dequeue() -> AsyncRef
 {
     return m_impl->dequeue();
 }
 
 auto Async_Trampoline_Scheduler::block_on(
-        Async* dependency_async, Async* blocked_async) -> void
+        Async const& dependency_async, AsyncRef blocked_async) -> void
 {
-    m_impl->block_on(dependency_async, blocked_async);
+    m_impl->block_on(dependency_async, std::move(blocked_async));
 }
 
-auto Async_Trampoline_Scheduler::complete(Async* async) -> void
+auto Async_Trampoline_Scheduler::complete(Async const& async) -> void
 {
     m_impl->complete(async);
 }
@@ -99,36 +99,24 @@ Async_Trampoline_Scheduler::Impl::~Impl()
     LOG_DEBUG(
             "clearing queue: " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
             SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this));
-
-    // clear out remaining enqueued items
-    while (runnable_queue.size())
-        runnable_queue.deq()->unref();
-
-    // clear out blocked items
-    for (auto it = blocked.begin(); it != blocked.end(); ++it)
-    {
-        it->second->unref();
-        blocked.erase(it);
-    }
 }
 
-void Async_Trampoline_Scheduler::Impl::enqueue(Async* async)
+void Async_Trampoline_Scheduler::Impl::enqueue(AsyncRef async)
 {
     LOG_DEBUG("enqueueing %p into " SCHEDULER_RUNNABLE_QUEUE_FORMAT ": " ASYNC_FORMAT "\n",
-            async,
+            async.decay(),
             SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this),
             ASYNC_FORMAT_ARGS(async));
 
-    if (runnable_enqueued.find(async) != runnable_enqueued.end())
+    if (runnable_enqueued.find(async.decay()) != runnable_enqueued.end())
     {
         LOG_DEBUG("enqueuing skieeped because already in queue\n");
         return;
     }
 
-    runnable_queue.enq(async);
-
-    runnable_enqueued.insert(async);
-    async->ref();
+    Async* key = async.decay();
+    runnable_queue.enq(std::move(async));
+    runnable_enqueued.insert(key);
 
     LOG_DEBUG(
             "    '-> " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
@@ -136,29 +124,28 @@ void Async_Trampoline_Scheduler::Impl::enqueue(Async* async)
 }
 
 void Async_Trampoline_Scheduler::Impl::block_on(
-        Async* dependency_async, Async* blocked_async)
+        Async const& dependency_async, AsyncRef blocked_async)
 {
     LOG_DEBUG(
         "dependency of " ASYNC_FORMAT " on " ASYNC_FORMAT "\n",
-        ASYNC_FORMAT_ARGS(blocked_async),
-        ASYNC_FORMAT_ARGS(dependency_async));
+        ASYNC_FORMAT_ARGS(blocked_async.decay()),
+        ASYNC_FORMAT_ARGS(&dependency_async));
 
-    blocked.insert({dependency_async, blocked_async});
-    blocked_async->ref();
+    blocked.insert({&dependency_async, std::move(blocked_async)});
 }
 
-Async* Async_Trampoline_Scheduler::Impl::dequeue()
+AsyncRef Async_Trampoline_Scheduler::Impl::dequeue()
 {
     assert(runnable_queue.size());
 
-    Async* async = runnable_queue.deq();
+    AsyncRef async = runnable_queue.deq();
 
     LOG_DEBUG(
             "dequeue %p from " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
             async,
             SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this));
 
-    auto entry = runnable_enqueued.find(async);
+    auto entry = runnable_enqueued.find(async.decay());
     if (entry == runnable_enqueued.end())
     {
         assert(0 /* dequeued an entry that was not registered in the enqueued set! */);
@@ -168,21 +155,21 @@ Async* Async_Trampoline_Scheduler::Impl::dequeue()
     return async;
 }
 
-void Async_Trampoline_Scheduler::Impl::complete(Async* async)
+void Async_Trampoline_Scheduler::Impl::complete(Async const& async)
 {
-    LOG_DEBUG("completing %p\n", async);
+    LOG_DEBUG("completing %p\n", &async);
 
-    auto count = blocked.count(async);
+    auto count = blocked.count(&async);
     LOG_DEBUG("    '-> %zu dependencies\n", count);
 
     if (count == 0)
         return;
 
-    for (auto it = blocked.find(async)
+    for (auto it = blocked.find(&async)
             ; it != blocked.end()
-            ; it = blocked.find(async))
+            ; it = blocked.find(&async))
     {
-        enqueue(it->second);
+        enqueue(std::move(it->second));
         blocked.erase(it);
     }
 }

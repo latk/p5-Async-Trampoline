@@ -27,10 +27,10 @@ public:
 
     /** Enqueue an item as possibly runnable.
      *
-     *  async: Async*
+     *  async: AsyncRef
      *      should be run in the future.
      */
-    auto enqueue(Async* async) -> void;
+    auto enqueue(AsyncRef async) -> void;
 
     /** Dequeue the next item.
      *
@@ -39,10 +39,10 @@ public:
      *  Precondition: queue_size() > 0
      *      There must be at least one element present.
      *
-     *  Returns: Async*
+     *  Returns: AsyncRef
      *      The next item.
      */
-    auto dequeue() -> Async*;
+    auto dequeue() -> AsyncRef;
 
     /** Register a dependency relationship.
      *
@@ -50,20 +50,20 @@ public:
      *
      *      blocked_async: dependency_async
      *
-     *  dependency_async: Async*
+     *  dependency_async: Async const&
      *      must be completed first.
-     *  blocked_async: Async*
+     *  blocked_async: AsyncRef
      *      is blocked until the "dependency_async" is completed-
      */
-    auto block_on(Async* dependency_async, Async* blocked_async) -> void;
+    auto block_on(Async const& dependency_async, AsyncRef blocked_async) -> void;
 
     /** Mark an item as completed.
      *
      *  Any items that block on the completed items will be enqueued in an
      *  unspecified order.
      *
-     *  async: Async*
+     *  async: Async const&
      *      a completed item.
      */
-    auto complete(Async* async) -> void;
+    auto complete(Async const& async) -> void;
 };

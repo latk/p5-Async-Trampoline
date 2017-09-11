@@ -48,7 +48,7 @@ Async_Trampoline_Scheduler::enqueue(Async* async, ...);
                 croak("Argument %d must be Async: ", i, SvPV_nolen(dep_sv));
             Async* dep = (Async*) SvIV(SvRV(dep_sv));
 
-            THIS->block_on(async, dep);
+            THIS->block_on(*async, dep);
         }
     }
     CLEANUP:
@@ -63,7 +63,7 @@ Async_Trampoline_Scheduler::dequeue();
         if (THIS->queue_size() == 0)
             XSRETURN_EMPTY;
 
-        RETVAL = THIS->dequeue();
+        RETVAL = &THIS->dequeue()->ref();
     }
     OUTPUT: RETVAL
     CLEANUP:
@@ -74,5 +74,9 @@ void
 Async_Trampoline_Scheduler::complete(Async* async);
     INIT:
         CXX_TRY
+    CODE:
+    {
+        THIS->complete(*async);
+    }
     CLEANUP:
         CXX_CATCH

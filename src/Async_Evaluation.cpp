@@ -16,7 +16,7 @@ Async_run_until_completion(
 
     while (scheduler.queue_size() > 0)
     {
-        Async* top = scheduler.dequeue();
+        AsyncRef top = scheduler.dequeue();
 
         if (!top)
             break;
@@ -24,7 +24,7 @@ Async_run_until_completion(
         Async trap;
         AsyncRef next = &trap;
         AsyncRef blocked = &trap;
-        Async_eval(top, next, blocked);
+        Async_eval(top.decay(), next, blocked);
 
         assert(next.decay() != &trap);
         assert(blocked.decay() != &trap);
@@ -37,18 +37,14 @@ Async_run_until_completion(
             scheduler.enqueue(next.decay());
 
             if (blocked)
-            {
-                scheduler.block_on(next.decay(), blocked.decay());
-            }
+                scheduler.block_on(next.get(), blocked.decay());
         }
 
-        if (top != next.decay() && top != blocked.decay())
+        if (top.decay() != next.decay() && top.decay() != blocked.decay())
         {
-            assert(Async_has_category(top, Async_Type::CATEGORY_COMPLETE));
-            scheduler.complete(top);
+            assert(top->has_category(Async_Type::CATEGORY_COMPLETE));
+            scheduler.complete(*top);
         }
-
-        top->unref();
     }
 
     ASYNC_LOG_DEBUG("loop complete\n");
