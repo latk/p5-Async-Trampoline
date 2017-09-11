@@ -159,10 +159,17 @@ struct Async
         refcount{1},
         as_ptr{nullptr}
     { }
+    Async(Async&& other) : Async{} { set_from(std::move(other)); }
     ~Async();
 
     auto ref() noexcept -> Async& { refcount++; return *this; }
     auto unref() -> void;
+
+    auto move_if_only_ref_else_ptr() -> Async;
+
+    auto clear() -> void;
+    auto set_from(Async&& other) -> void;
+    auto operator=(Async& other) -> Async&;
 
     auto ptr_follow() -> Async&;
 
@@ -395,16 +402,6 @@ Async_eval(
         AsyncRef& next,
         AsyncRef& blocked);
 
-void
-Async_unify(
-        Async*  self,
-        Async*  other);
-
-inline Async*
-Async_Ptr_follow(
-        Async* self)
-{ assert(self); return &self->ptr_follow(); }
-
 inline auto AsyncRef::fold() -> AsyncRef&
 {
     Async* target = &ptr->ptr_follow();
@@ -437,3 +434,22 @@ Async_has_category(
 void
 Async_run_until_completion(
         Async*  async);
+
+inline auto Async::clear() -> void
+{ Async_clear(this); }
+
+inline auto Async::move_if_only_ref_else_ptr() -> Async
+{
+    if (refcount == 1)
+        return std::move(*this);
+
+    Async result;
+
+    // as a special case, CANCEL holds no resources and can always be copied
+    if (has_type(Async_Type::IS_CANCEL))
+        Async_Cancel_init(&result);
+    else
+        Async_Ptr_init(&result, this);
+
+    return result;
+}

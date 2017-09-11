@@ -96,109 +96,95 @@ Async_clear(
     }
 }
 
-void
-Async_unify(
-        Async*  self,
-        Async*  other)
+auto Async::set_from(Async&& other) -> void
 {
-    assert(self);
-    assert(other);
+    assert(type == Async_Type::IS_UNINITIALIZED);
 
-    ASYNC_LOG_DEBUG("unify %p with %p\n", self, other);
-
-    Async* unref_me = NULL;
-
-    if (self->type != Async_Type::IS_UNINITIALIZED)
+    switch (other.type)
     {
-        (unref_me = other)->ref();  // in case "other" was owned by "self"
-        Async_clear(self);
+        case Async_Type::IS_UNINITIALIZED:
+            break;
+
+        case Async_Type::CATEGORY_INITIALIZED:
+            assert(0);
+            break;
+        case Async_Type::IS_PTR:
+            Async_Ptr_init_move(
+                    this, &other);  // TODO really?
+            break;
+        case Async_Type::IS_RAWTHUNK:
+            Async_RawThunk_init_move(
+                    this, &other);
+            break;
+        case Async_Type::IS_THUNK:
+            Async_Thunk_init_move(
+                    this, &other);
+            break;
+        case Async_Type::IS_CONCAT:
+            Async_Concat_init_move(
+                    this, &other);
+            break;
+        case Async_Type::IS_COMPLETE_THEN:
+            Async_CompleteThen_init_move(
+                    this, &other);
+            break;
+        case Async_Type::IS_RESOLVED_OR:
+            Async_ResolvedOr_init_move(
+                    this, &other);
+            break;
+        case Async_Type::IS_RESOLVED_THEN:
+            Async_ResolvedThen_init_move(
+                    this, &other);
+            break;
+        case Async_Type::IS_VALUE_OR:
+            Async_ValueOr_init_move(
+                    this, &other);
+            break;
+        case Async_Type::IS_VALUE_THEN:
+            Async_ValueThen_init_move(
+                    this, &other);
+            break;
+
+        case Async_Type::CATEGORY_COMPLETE:
+            assert(0);
+            break;
+        case Async_Type::IS_CANCEL:
+            Async_Cancel_init_move(
+                    this, &other);
+            break;
+
+        case Async_Type::CATEGORY_RESOLVED:
+            assert(0);
+            break;
+        case Async_Type::IS_ERROR:
+            Async_Error_init_move(
+                    this, &other);
+            break;
+        case Async_Type::IS_VALUE:
+            Async_Value_init_move(
+                    this, &other);
+            break;
+
+        default:
+            assert(0);
     }
 
-    if (Async_has_type(other, Async_Type::IS_CANCEL))
-    {
-        Async_Cancel_init(self);
-    }
-    else if (other->refcount > 1)
-    {
-        Async_Ptr_init(self, other);
-    }
-    else
-    {
+}
 
-        switch (other->type)
-        {
-            case Async_Type::IS_UNINITIALIZED:
-                break;
+auto Async::operator=(Async& other) -> Async&
+{
+    ASYNC_LOG_DEBUG("unify %p with %p\n", this, &other);
 
-            case Async_Type::CATEGORY_INITIALIZED:
-                assert(0);
-                break;
-            case Async_Type::IS_PTR:
-                Async_Ptr_init_move(
-                        self, other);  // TODO really?
-                break;
-            case Async_Type::IS_RAWTHUNK:
-                Async_RawThunk_init_move(
-                        self, other);
-                break;
-            case Async_Type::IS_THUNK:
-                Async_Thunk_init_move(
-                        self, other);
-                break;
-            case Async_Type::IS_CONCAT:
-                Async_Concat_init_move(
-                        self, other);
-                break;
-            case Async_Type::IS_COMPLETE_THEN:
-                Async_CompleteThen_init_move(
-                        self, other);
-                break;
-            case Async_Type::IS_RESOLVED_OR:
-                Async_ResolvedOr_init_move(
-                        self, other);
-                break;
-            case Async_Type::IS_RESOLVED_THEN:
-                Async_ResolvedThen_init_move(
-                        self, other);
-                break;
-            case Async_Type::IS_VALUE_OR:
-                Async_ValueOr_init_move(
-                        self, other);
-                break;
-            case Async_Type::IS_VALUE_THEN:
-                Async_ValueThen_init_move(
-                        self, other);
-                break;
+    // save other in case we might own it
+    AsyncRef unref_me{};
+    if (type != Async_Type::IS_UNINITIALIZED)
+        unref_me = &other;
 
-            case Async_Type::CATEGORY_COMPLETE:
-                assert(0);
-                break;
-            case Async_Type::IS_CANCEL:
-                Async_Cancel_init_move(
-                        self, other);
-                break;
+    clear();
 
-            case Async_Type::CATEGORY_RESOLVED:
-                assert(0);
-                break;
-            case Async_Type::IS_ERROR:
-                Async_Error_init_move(
-                        self, other);
-                break;
-            case Async_Type::IS_VALUE:
-                Async_Value_init_move(
-                        self, other);
-                break;
+    set_from(other.move_if_only_ref_else_ptr());
 
-            default:
-                assert(0);
-        }
-    }
-
-    if (unref_me)
-        unref_me->unref();
-
-    return;
+    return *this;
 }
 
 // Binary

@@ -98,7 +98,7 @@ Async_Thunk_eval(
 
         if (!dependency->has_type(Async_Type::IS_VALUE))
         {
-            Async_unify(self, dependency.decay());
+            *self = dependency.get();
             return EVAL_RETURN(NULL, NULL);
         }
 
@@ -110,7 +110,7 @@ Async_Thunk_eval(
             std::move(self->as_thunk.context), *values);
     assert(result);
 
-    Async_unify(self, result.decay());
+    *self = result.get();
 
     return EVAL_RETURN(self, nullptr);
 }
@@ -143,7 +143,7 @@ Async_Concat_eval(
     {
         if(Async* selected  = select_if_either_has_type(left, right, type))
         {
-            Async_unify(self, selected);
+            *self = *selected;
             return EVAL_RETURN(nullptr, nullptr);
         }
     }
@@ -220,12 +220,12 @@ eval_control_flow_op(
 
     if (stay_left)
     {
-        Async_unify(self, left);
+        *self = *left;
         return EVAL_RETURN(NULL, NULL);
     }
     else
     {
-        Async_unify(self, right);
+        *self = *right;
         return EVAL_RETURN(self, NULL);
     }
 }
@@ -253,7 +253,7 @@ Async_eval(
             assert(0);
             break;
         case Async_Type::IS_PTR:
-            Async_eval(Async_Ptr_follow(self), next, blocked);
+            Async_eval(&self->ptr_follow(), next, blocked);
             break;
         case Async_Type::IS_RAWTHUNK:
             Async_RawThunk_eval(
@@ -340,4 +340,3 @@ Async_eval(
             next,
             blocked);
 }
-
