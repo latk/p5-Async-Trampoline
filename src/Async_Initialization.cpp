@@ -131,7 +131,6 @@ auto Async::set_from(Async&& other) -> void
         case Async_Type::IS_THUNK:
             Async_Thunk_init(this,
                     std::move(other.as_thunk.callback),
-                    std::move(other.as_thunk.context),
                     std::move(other.as_thunk.dependency));
             Async_Thunk_clear(&other);
             break;
@@ -222,14 +221,12 @@ Async_Ptr_clear(
 
 void
 Async_RawThunk_init(
-        Async*                  self,
-        Async_RawThunkCallback  callback,
-        Destructible            context,
-        Async*                  dependency)
+        Async*                      self,
+        Async_RawThunk::Callback    callback,
+        Async*                      dependency)
 {
     ASSERT_INIT(self);
     assert(callback);
-    assert(context.vtable);
 
     UNUSED(dependency);
 
@@ -250,26 +247,23 @@ Async_RawThunk_clear(
 
 void
 Async_Thunk_init(
-        Async*              self,
-        Async_ThunkCallback callback,
-        Destructible        context,
-        AsyncRef            dependency)
+        Async*                  self,
+        Async_Thunk::Callback   callback,
+        AsyncRef                dependency)
 {
     ASYNC_LOG_DEBUG(
-            "init Async %p to Thunk: callback=%p context.data=%p dependency=%p\n",
-            self, callback, context.data, dependency.decay());
+            "init Async %p to Thunk: callback=??? dependency=%p\n",
+            self, dependency.decay());
 
     ASSERT_INIT(self);
     assert(callback);
-    assert(context.vtable);
 
     if (dependency)
         dependency.fold();
 
     self->type = Async_Type::IS_THUNK;
     new (&self->as_thunk) Async_Thunk{
-        callback,
-        std::move(context),
+        std::move(callback),
         std::move(dependency),
     };
 }

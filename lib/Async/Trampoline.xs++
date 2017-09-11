@@ -29,9 +29,8 @@ static Destructible_Vtable sv_vtable { destroy_sv_ref, copy_sv_ref };
 
 static
 AsyncRef
-invoke_cv(Destructible body_container, DestructibleTuple const& args)
+invoke_cv(CV* callback, DestructibleTuple const& args)
 {
-    CV* callback = (CV*) body_container.data;
     assert(callback);
 
     if (ASYNC_TRAMPOLINE_DEBUG)
@@ -100,6 +99,22 @@ invoke_cv(Destructible body_container, DestructibleTuple const& args)
     return result;
 }
 
+class InvokeCV
+{
+    Destructible context;
+public:
+    explicit InvokeCV(Destructible context) : context{std::move(context)} {}
+
+    InvokeCV(CV* callback) : InvokeCV{{callback, &sv_vtable}}
+    { SvREFCNT_inc(callback); }
+
+    auto operator() (DestructibleTuple const& args) -> AsyncRef
+    {
+        CV* callback = (CV*) context.data;
+        return invoke_cv(callback, args);
+    }
+};
+
 MODULE = Async::Trampoline PACKAGE = Async::Trampoline
 
 void
@@ -161,10 +176,8 @@ async(body)
         AsyncRef self = Async::alloc();
         Async_Thunk_init(
                 self.decay(),
-                invoke_cv,
-                Destructible{body, &sv_vtable},
+                InvokeCV{body},
                 NULL);
-        SvREFCNT_inc(body);
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
@@ -183,10 +196,8 @@ await(dep, body)
         AsyncRef self = Async::alloc();
         Async_Thunk_init(
                 self.decay(),
-                invoke_cv,
-                Destructible{body, &sv_vtable},
+                InvokeCV{body},
                 dep);
-        SvREFCNT_inc(body);
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
@@ -202,13 +213,7 @@ async_value(...)
     {
         DestructibleTuple values{&sv_vtable, (size_t) items};
         for (size_t i = 0; i < items; i++)
-        {
-            Destructible destructible_value{
-                newSVsv(ST(i)),
-                &sv_vtable,
-            };
-            values.set(i, std::move(destructible_value));
-        }
+            values.set(i, Destructible { newSVsv(ST(i)), &sv_vtable });
 
         AsyncRef self = Async::alloc();
         Async_Value_init(self.decay(), std::move(values));

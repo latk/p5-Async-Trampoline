@@ -81,10 +81,8 @@ Async_Thunk_eval(
     assert(self->type == Async_Type::IS_THUNK);
 
     ASYNC_LOG_DEBUG(
-            "running Thunk %p: callback=%p context.data=%p dependency=%p\n",
+            "running Thunk %p: callback=??? dependency=%p\n",
             self,
-            self->as_thunk.callback,
-            self->as_thunk.context.data,
             self->as_thunk.dependency.decay());
 
     AsyncRef dependency = self->as_thunk.dependency;
@@ -106,8 +104,7 @@ Async_Thunk_eval(
         values = &dependency->as_value;
     }
 
-    AsyncRef result = self->as_thunk.callback(
-            std::move(self->as_thunk.context), *values);
+    AsyncRef result = self->as_thunk.callback(*values);
     assert(result);
 
     *self = result.get();

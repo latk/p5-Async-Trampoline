@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <functional>
 
 #ifndef ASYNC_TRAMPOLINE_DEBUG
 #define ASYNC_TRAMPOLINE_DEBUG 0
@@ -111,26 +112,18 @@ public:
     { return std::exchange(ptr, nullptr); }
 };
 
-using Async_RawThunkCallback = AsyncRef (*)(
-        Destructible context,
-        AsyncRef value);
-
 struct Async_RawThunk
 {
-    Async_RawThunkCallback  callback;
-    Destructible            context;
-    AsyncRef                dependency;
+    using Callback = std::function<AsyncRef(AsyncRef dependency)>;
+    Callback    callback;
+    AsyncRef    dependency;
 };
-
-using Async_ThunkCallback = AsyncRef (*)(
-        Destructible                context,
-        DestructibleTuple const&    data);
 
 struct Async_Thunk
 {
-    Async_ThunkCallback callback;
-    Destructible        context;
-    AsyncRef            dependency;
+    using Callback = std::function<AsyncRef(DestructibleTuple const& data)>;
+    Callback    callback;
+    AsyncRef    dependency;
 };
 
 struct Async_Pair
@@ -204,17 +197,15 @@ Async_Ptr_init(
 
 void
 Async_RawThunk_init(
-        Async*                  self,
-        Async_RawThunkCallback  callback,
-        Destructible            context,
-        AsyncRef                dependency);
+        Async*                      self,
+        Async_RawThunk::Callback    callback,
+        AsyncRef                    dependency);
 
 void
 Async_Thunk_init(
-        Async*              self,
-        Async_ThunkCallback callback,
-        Destructible        context,
-        AsyncRef            dependency);
+        Async*                  self,
+        Async_Thunk::Callback   callback,
+        AsyncRef                dependency);
 
 void
 Async_Concat_init(
