@@ -160,9 +160,22 @@ struct Async
 
     auto move_if_only_ref_else_ptr() -> Async;
 
+    auto operator=(Async& other) -> Async&;
     auto clear() -> void;
     auto set_from(Async&& other) -> void;
-    auto operator=(Async& other) -> Async&;
+
+    void set_to_Ptr         (AsyncRef target);
+    void set_to_RawThunk    (Async_RawThunk::Callback callback, AsyncRef dep);
+    void set_to_Thunk       (Async_Thunk::Callback    callback, AsyncRef dep);
+    void set_to_Concat      (AsyncRef left, AsyncRef right);
+    void set_to_CompleteThen(AsyncRef first, AsyncRef then);
+    void set_to_ResolvedOr  (AsyncRef first, AsyncRef orelse);
+    void set_to_ResolvedThen(AsyncRef first, AsyncRef then);
+    void set_to_ValueOr     (AsyncRef first, AsyncRef orelse);
+    void set_to_ValueThen   (AsyncRef first, AsyncRef then);
+    void set_to_Cancel      ();
+    void set_to_Error       (Destructible error);
+    void set_to_Value       (DestructibleTuple values);
 
     auto ptr_follow() -> Async&;
 
@@ -185,79 +198,6 @@ inline auto AsyncRef::clear() -> void {
         ptr->unref();
     ptr = nullptr;
 }
-
-//{{{ Initialization: Async_X_init()
-//
-// IS_UNINITIALIZED -> IS_X
-
-void
-Async_Ptr_init(
-        Async*      self,
-        AsyncRef    target);
-
-void
-Async_RawThunk_init(
-        Async*                      self,
-        Async_RawThunk::Callback    callback,
-        AsyncRef                    dependency);
-
-void
-Async_Thunk_init(
-        Async*                  self,
-        Async_Thunk::Callback   callback,
-        AsyncRef                dependency);
-
-void
-Async_Concat_init(
-        Async*      self,
-        AsyncRef    left,
-        AsyncRef    right);
-
-void
-Async_CompleteThen_init(
-        Async*  self,
-        AsyncRef    first,
-        AsyncRef    then);
-
-void
-Async_ResolvedOr_init(
-        Async*      self,
-        AsyncRef    first,
-        AsyncRef    orelse);
-
-void
-Async_ResolvedThen_init(
-        Async*      self,
-        AsyncRef    first,
-        AsyncRef    then);
-
-void
-Async_ValueOr_init(
-        Async*      self,
-        AsyncRef    first,
-        AsyncRef    orelse);
-
-void
-Async_ValueThen_init(
-        Async*      self,
-        AsyncRef    first,
-        AsyncRef    then);
-
-void
-Async_Cancel_init(
-        Async*  self);
-
-void
-Async_Error_init(
-        Async*              self,
-        Destructible        error);
-
-void
-Async_Value_init(
-        Async*                          self,
-        DestructibleTuple               values);
-
-//}}}
 
 // Evaluation: Async_X_evaluate()
 // Incomplete -> Complete
@@ -309,9 +249,9 @@ inline auto Async::move_if_only_ref_else_ptr() -> Async
 
     // as a special case, CANCEL holds no resources and can always be copied
     if (has_type(Async_Type::IS_CANCEL))
-        Async_Cancel_init(&result);
+        result.set_to_Cancel();
     else
-        Async_Ptr_init(&result, this);
+        result.set_to_Ptr(this);
 
     return result;
 }

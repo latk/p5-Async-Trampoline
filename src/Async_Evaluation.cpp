@@ -177,7 +177,7 @@ Async_Concat_eval(
     }
 
     self->clear();
-    Async_Value_init(self, std::move(tuple));
+    self->set_to_Value(std::move(tuple));
     return EVAL_RETURN(NULL, NULL);
 }
 

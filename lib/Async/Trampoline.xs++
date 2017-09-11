@@ -81,7 +81,7 @@ invoke_cv(CV* callback, DestructibleTuple const& args)
         POPs;  // discard scalar return value
         result = Async::alloc();
         Destructible error_temp { newSVsv(error), &sv_vtable };
-        Async_Error_init(result.decay(), std::move(error_temp));
+        result->set_to_Error(std::move(error_temp));
     }
     else
     {
@@ -174,10 +174,7 @@ async(body)
     CODE:
     {
         AsyncRef self = Async::alloc();
-        Async_Thunk_init(
-                self.decay(),
-                InvokeCV{body},
-                NULL);
+        self->set_to_Thunk(InvokeCV{body}, nullptr);
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
@@ -194,10 +191,7 @@ await(dep, body)
     CODE:
     {
         AsyncRef self = Async::alloc();
-        Async_Thunk_init(
-                self.decay(),
-                InvokeCV{body},
-                dep);
+        self->set_to_Thunk(InvokeCV{body}, dep);
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
@@ -216,7 +210,7 @@ async_value(...)
             values.set(i, Destructible { newSVsv(ST(i)), &sv_vtable });
 
         AsyncRef self = Async::alloc();
-        Async_Value_init(self.decay(), std::move(values));
+        self->set_to_Value(std::move(values));
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
@@ -233,7 +227,7 @@ async_error(message)
     {
         Destructible value{ newSVsv(message), &sv_vtable };
         AsyncRef self = Async::alloc();
-        Async_Error_init(self.decay(), std::move(value));
+        self->set_to_Error(std::move(value));
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
@@ -248,7 +242,7 @@ async_cancel()
     CODE:
     {
         AsyncRef self = Async::alloc();
-        Async_Cancel_init(self.decay());
+        self->set_to_Cancel();
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
@@ -265,7 +259,7 @@ async_resolved_or(first, orelse)
     CODE:
     {
         AsyncRef self = Async::alloc();
-        Async_ResolvedOr_init(self.decay(), first, orelse);
+        self->set_to_ResolvedOr(first, orelse);
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL

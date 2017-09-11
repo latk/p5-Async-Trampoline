@@ -6,11 +6,10 @@
 #define UNUSED(x) (void)(x)
 
 #define BINARY_INIT(name, type)                                             \
-    void Async_ ## name ## _init(Async* self, AsyncRef left, AsyncRef right)\
-    { binary_init(self, type, std::move(left), std::move(right)); }
+    void Async::set_to_ ## name (AsyncRef left, AsyncRef right)             \
+    { set_to_Binary(*this, type, std::move(left), std::move(right)); }
 
 #define ASSERT_INIT(self) do {                                              \
-    assert(self);                                                           \
     assert((self)->type == Async_Type::IS_UNINITIALIZED);                   \
 } while (0)
 
@@ -18,21 +17,21 @@
 
 static
 void
-binary_init(
-        Async*          self,
+set_to_Binary(
+        Async&          self,
         enum Async_Type type,
         AsyncRef        left,
         AsyncRef        right)
 {
-    ASSERT_INIT(self);
+    ASSERT_INIT(&self);
     assert(left);
     assert(right);
 
     left.fold();
     right.fold();
 
-    self->type = type;
-    new (&self->as_binary) Async_Pair {
+    self.type = type;
+    new (&self.as_binary) Async_Pair {
         std::move(left),
         std::move(right),
     };
@@ -122,14 +121,14 @@ auto Async::set_from(Async&& other) -> void
             assert(0);
             break;
         case Async_Type::IS_PTR:
-            Async_Ptr_init(this, std::move(other.as_ptr));
+            set_to_Ptr(std::move(other.as_ptr));
             Async_Ptr_clear(&other);
             break;
         case Async_Type::IS_RAWTHUNK:
             assert(0); // TODO not implemented
             break;
         case Async_Type::IS_THUNK:
-            Async_Thunk_init(this,
+            set_to_Thunk(
                     std::move(other.as_thunk.callback),
                     std::move(other.as_thunk.dependency));
             Async_Thunk_clear(&other);
@@ -140,8 +139,8 @@ auto Async::set_from(Async&& other) -> void
         case Async_Type::IS_RESOLVED_THEN:
         case Async_Type::IS_VALUE_OR:
         case Async_Type::IS_VALUE_THEN:
-            binary_init(
-                    this,
+            set_to_Binary(
+                    *this,
                     other.type,
                     std::move(other.as_binary.left),
                     std::move(other.as_binary.right));
@@ -152,7 +151,7 @@ auto Async::set_from(Async&& other) -> void
             assert(0);
             break;
         case Async_Type::IS_CANCEL:
-            Async_Cancel_init(this);
+            set_to_Cancel();
             Async_Cancel_clear(&other);
             break;
 
@@ -160,11 +159,11 @@ auto Async::set_from(Async&& other) -> void
             assert(0);
             break;
         case Async_Type::IS_ERROR:
-            Async_Error_init(this, std::move(other.as_error));
+            set_to_Error(std::move(other.as_error));
             Async_Error_clear(&other);
             break;
         case Async_Type::IS_VALUE:
-            Async_Value_init(this, std::move(other.as_value));
+            set_to_Value(std::move(other.as_value));
             Async_Value_clear(&other);
             break;
 
@@ -192,18 +191,16 @@ auto Async::operator=(Async& other) -> Async&
 
 // Ptr
 
-void
-Async_Ptr_init(
-        Async*      self,
-        AsyncRef    target)
+void Async::set_to_Ptr(
+        AsyncRef target)
 {
-    ASSERT_INIT(self);
+    ASSERT_INIT(this);
     assert(target);
 
     target.fold();
 
-    self->type = Async_Type::IS_PTR;
-    new (&self->as_ptr) AsyncRef { std::move(target) };
+    type = Async_Type::IS_PTR;
+    new (&as_ptr) AsyncRef { std::move(target) };
 }
 
 void
@@ -219,13 +216,11 @@ Async_Ptr_clear(
 
 // RawThunk
 
-void
-Async_RawThunk_init(
-        Async*                      self,
+void Async::set_to_RawThunk(
         Async_RawThunk::Callback    callback,
-        Async*                      dependency)
+        AsyncRef                    dependency)
 {
-    ASSERT_INIT(self);
+    ASSERT_INIT(this);
     assert(callback);
 
     UNUSED(dependency);
@@ -245,24 +240,22 @@ Async_RawThunk_clear(
 
 // Thunk
 
-void
-Async_Thunk_init(
-        Async*                  self,
+void Async::set_to_Thunk(
         Async_Thunk::Callback   callback,
         AsyncRef                dependency)
 {
     ASYNC_LOG_DEBUG(
             "init Async %p to Thunk: callback=??? dependency=%p\n",
-            self, dependency.decay());
+            this, dependency.decay());
 
-    ASSERT_INIT(self);
+    ASSERT_INIT(this);
     assert(callback);
 
     if (dependency)
         dependency.fold();
 
-    self->type = Async_Type::IS_THUNK;
-    new (&self->as_thunk) Async_Thunk{
+    type = Async_Type::IS_THUNK;
+    new (&as_thunk) Async_Thunk{
         std::move(callback),
         std::move(dependency),
     };
@@ -288,13 +281,11 @@ BINARY_INIT(ValueThen,       Async_Type::IS_VALUE_THEN)
 
 // Cancel
 
-void
-Async_Cancel_init(
-        Async* self)
+void Async::set_to_Cancel()
 {
-    ASSERT_INIT(self);
+    ASSERT_INIT(this);
 
-    self->type = Async_Type::IS_CANCEL;
+    type = Async_Type::IS_CANCEL;
 }
 
 void
@@ -309,16 +300,14 @@ Async_Cancel_clear(
 
 // Error
 
-void
-Async_Error_init(
-        Async*          self,
+void Async::set_to_Error(
         Destructible    error)
 {
-    ASSERT_INIT(self);
+    ASSERT_INIT(this);
     assert(error.vtable);
 
-    self->type = Async_Type::IS_ERROR;
-    new (&self->as_error) Destructible { std::move(error) };
+    type = Async_Type::IS_ERROR;
+    new (&as_error) Destructible { std::move(error) };
 }
 
 void
@@ -334,24 +323,22 @@ Async_Error_clear(
 
 // Value
 
-void
-Async_Value_init(
-        Async*                          self,
+void Async::set_to_Value(
         DestructibleTuple               values)
 {
-    ASSERT_INIT(self);
+    ASSERT_INIT(this);
 
     if (ASYNC_TRAMPOLINE_DEBUG)
     {
         ASYNC_LOG_DEBUG(
                 "init Async %p to Values: values = %p { size = %zu }\n",
-                self, values.data.get(), values.size);
+                this, values.data.get(), values.size);
         for (auto val : values)
             ASYNC_LOG_DEBUG("  - values %p\n", val);
     }
 
-    self->type = Async_Type::IS_VALUE;
-    new (&self->as_value) DestructibleTuple{std::move(values)};
+    type = Async_Type::IS_VALUE;
+    new (&as_value) DestructibleTuple{std::move(values)};
 }
 
 void
