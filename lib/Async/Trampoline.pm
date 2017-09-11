@@ -4,6 +4,8 @@ use utf8;
 
 package Async::Trampoline;
 
+=encoding utf8
+
 =head1 NAME
 
 Async::Trampoline - Trampolining functions with async/await syntax
@@ -59,6 +61,47 @@ Async/recursive:
 
     run_until_completion loop_async([], 5);
 
+=head1 ASYNC STATES
+
+Each Async exists in one of these states:
+
+    Async
+    +-- Incomplete
+        +-- ... (internal)
+    +-- Complete
+        +-- Cancelled
+        +-- Resolved
+            +-- Error
+            +-- Value
+
+In Incomplete states, the Async will be processed in the future.
+At some point, the Async will transition to a completed state.
+
+In C<async> and C<await> callbacks,
+the Async will be updated to the state of the return value of that callback.
+
+Completed states are terminal.
+The Asyncs are not subject to further processing.
+
+A Cancelled Async represents an aborted computation.
+They have no value.
+Cancellation is not an error,
+but C<run_until_completion()> will die when the Async was cancelled.
+You can cancel a computation via the C<async_cancel> constructor.
+
+Resolved Async are Completed Asyncs that finished their computation
+and have a value, either an Error or a Value upon success.
+
+An Error Async indicates that a runtime error occurred.
+Error Asyncs can be created with the C<async_error> constructor,
+or when a callback throws.
+The exception will be rethrown by C<run_until_completion()>.
+
+A Value Async contains a list of Perl values.
+They can be created with the C<async_value> constructor.
+The values will be returned by C<run_until_completion()>.
+To access the values of an Async, you can C<await> it.
+
 =head1 FUNCTIONS
 
 =cut
@@ -79,6 +122,7 @@ our %EXPORT_TAGS = (
         await
         async
         async_value
+        async_error
         async_cancel
     /],
 );
@@ -125,6 +169,16 @@ TODO
 
 TODO
 
+=head2 async_error
+
+    $async = async_error $error
+
+TODO
+
+=cut
+
+sub async_error($;) { ... }  # TODO
+
 =head2 async_cancel
 
     $async = async_cancel
@@ -161,6 +215,32 @@ use overload
         my ($self) = @_;
         return $self->to_string;
     };
+
+=head2 is_complete
+
+=head2 is_cancelled
+
+=head2 is_resolved
+
+=head2 is_error
+
+=head2 is_value
+
+    $bool = $async->is_complete;
+    $bool = $async->is_cancelled;
+    $bool = $async->is_resolved;
+    $bool = $async->is_error;
+    $bool = $async->is_value;
+
+Inspect the state of an Async (see L<"Async States"|/"ASYNC STATES">).
+
+=cut
+
+sub is_complete     :method { ... }  # TODO
+sub is_cancelled    :method { ... }  # TODO
+sub is_resolved     :method { ... }  # TODO
+sub is_error        :method { ... }  # TODO
+sub is_value        :method { ... }  # TODO
 
 1;
 
