@@ -1,6 +1,6 @@
 #include "Scheduler.h"
 
-#include "Demangle.h"
+#include "ConvertErrorsXS.h"
 
 extern "C" {
 #define PERL_NO_GET_CONTEXT
@@ -9,12 +9,6 @@ extern "C" {
 #include "XSUB.h"
 }
 
-#include <stdexcept>
-
-#define CXX_TRY try {
-#define CXX_CATCH } catch (std::exception& ex) {                            \
-    croak("%s: %s", demangle(typeid(ex).name()).c_str(), ex.what());        \
-}
 
 MODULE = Async::Trampoline::Scheduler PACKAGE = Async::Trampoline::Scheduler
 

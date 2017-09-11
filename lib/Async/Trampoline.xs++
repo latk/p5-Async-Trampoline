@@ -1,8 +1,12 @@
 #define PERL_NO_GET_CONTEXT
 
+#include "ConvertErrorsXS.h"
+
+extern "C" {
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
+}
 
 #include "Async.h"
 
@@ -90,6 +94,8 @@ void
 run_until_completion(async)
         Async* async;
     PROTOTYPE: $;
+    INIT:
+        CXX_TRY
     PPCODE:
     {
         Async_run_until_completion(async);
@@ -120,17 +126,24 @@ run_until_completion(async)
             assert(0);
         }
     }
+    CXX_CATCH
 
 void
 DESTROY(async)
         Async* async;
+    INIT:
+        CXX_TRY
     CODE:
         async->unref();
+    CLEANUP:
+        CXX_CATCH
 
 Async*
 async(body)
         CV* body
     PROTOTYPE: &
+    INIT:
+        CXX_TRY
     CODE:
     {
         Async* self = &Async::alloc()->ref();
@@ -143,12 +156,16 @@ async(body)
         RETVAL = self;
     }
     OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
 
 Async*
 await(dep, body)
         Async*  dep;
         CV*     body;
     PROTOTYPE: $&
+    INIT:
+        CXX_TRY
     CODE:
     {
         Async* self = &Async::alloc()->ref();
@@ -161,10 +178,14 @@ await(dep, body)
         RETVAL = self;
     }
     OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
 
 Async*
 async_value(...)
     PROTOTYPE: @
+    INIT:
+        CXX_TRY
     CODE:
     {
         DestructibleTuple values{&sv_vtable, (size_t) items};
@@ -182,10 +203,14 @@ async_value(...)
         RETVAL = self;
     }
     OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
 
 Async*
 async_cancel()
     PROTOTYPE:
+    INIT:
+        CXX_TRY
     CODE:
     {
         Async* self = &Async::alloc()->ref();
@@ -193,12 +218,16 @@ async_cancel()
         RETVAL = self;
     }
     OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
 
 Async*
 async_resolved_or(first, orelse)
         Async*  first;
         Async*  orelse;
     PROTOTYPE: DISABLE
+    INIT:
+        CXX_TRY
     CODE:
     {
         Async* self = &Async::alloc()->ref();
@@ -206,13 +235,19 @@ async_resolved_or(first, orelse)
         RETVAL = self;
     }
     OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
 
 SV*
 to_string(self)
         Async*  self;
     PROTOTYPE: DISABLE
+    INIT:
+        CXX_TRY
     CODE:
     {
         RETVAL = newSVpvf("<Async 0x%zx %s>", (size_t) self, Async_Type_name(self->type));
     }
     OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
