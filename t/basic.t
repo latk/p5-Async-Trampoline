@@ -85,4 +85,75 @@ describe q(resolved_or) => sub {
     };
 };
 
+describe q(is_complete()) => sub {
+    my $async = async { return async_value; };
+
+    ok !$async->is_complete, "async thunk is not complete";
+
+    $async->run_until_completion;
+
+    ok $async->is_complete, "completed async is complete";
+
+    ok +(async_cancel)->is_complete, "cancel is complete";
+    # TODO ok +(async_error "error message")->is_complete, "error is complete";
+    ok +(async_value)->is_complete, "value is complete";
+};
+
+describe q(is_resolved()) => sub {
+    my $async = async { return async_value; };
+
+    ok !$async->is_resolved, "async thunk is not resolved";
+
+    $async->run_until_completion;
+
+    ok $async->is_resolved, "completed async is resolved";
+
+    ok !(async_cancel)->is_resolved, "cancel is not resolved";
+    # TODO ok +(async_error "error message")->is_resolved, "error is resolved";
+    ok +(async_value)->is_resolved, "value is resolved";
+};
+
+describe q(is_cancelled()) => sub {
+    my $async = async { return async_cancel; };
+
+    ok !$async->is_cancelled, "async thunk is not cancelled";
+
+    eval { $async->run_until_completion };  # throws due to cancellation
+
+    ok $async->is_cancelled, "completed async is cancelled";
+
+    ok +(async_cancel)->is_cancelled, "cancel is cancelled";
+    # TODO ok !(async_error "error message")->is_cancelled, "error is not cancelled";
+    ok !(async_value)->is_cancelled, "value is not cancelled";
+};
+
+describe q(is_error()) => sub {
+    my $async = async { return async_error "error message" };
+
+    ok !$async->is_error, "async thunk is not error";
+
+    # TODO
+    # eval { $async->run_until_completion };  # throws errors
+
+    # ok $async->is_error, "completed async is error";
+
+    # ok !(async_cancel)->is_error, "cancel is not error";
+    # ok +(async_error "error message")->is_error, "error is error";
+    # ok !(async_value)->is_error, "value is not error";
+};
+
+describe q(is_value()) => sub {
+    my $async = async { return async_value };
+
+    ok !$async->is_value, "async thunk is not value";
+
+    $async->run_until_completion;
+
+    ok $async->is_value, "completed async is value";
+
+    ok !(async_cancel)->is_value, "cancel is not value";
+    # TODO ok !(async_error "error message")->is_value, "error is not value";
+    ok +(async_value)->is_value, "value is value";
+};
+
 done_testing;

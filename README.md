@@ -156,7 +156,7 @@ TODO
     $str = $async->to_string
     $str = "$async"
 
-Low-level debugging stringfification that displays Async identity and type.
+Low-level debugging stringification that displays Async identity and type.
 
 ## is\_complete
 

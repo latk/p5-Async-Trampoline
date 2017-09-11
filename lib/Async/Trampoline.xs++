@@ -251,3 +251,37 @@ to_string(self)
     OUTPUT: RETVAL
     CLEANUP:
         CXX_CATCH
+
+#define ASYNC_TYPE_GET(name) (static_cast<I32>(Async_Type::name))
+#define ASYNC_TYPE_CATEGORY_COMPLETE ASYNC_TYPE_GET(CATEGORY_COMPLETE)
+#define ASYNC_TYPE_CATEGORY_RESOLVED ASYNC_TYPE_GET(CATEGORY_RESOLVED)
+#define ASYNC_TYPE_IS_CANCEL ASYNC_TYPE_GET(IS_CANCEL)
+#define ASYNC_TYPE_IS_ERROR ASYNC_TYPE_GET(IS_ERROR)
+#define ASYNC_TYPE_IS_VALUE ASYNC_TYPE_GET(IS_VALUE)
+
+bool
+Async::is_complete()
+    ALIAS:
+        is_complete = ASYNC_TYPE_CATEGORY_COMPLETE
+        is_resolved = ASYNC_TYPE_CATEGORY_RESOLVED
+    INIT:
+        CXX_TRY
+    CODE:
+        RETVAL = THIS->has_category(static_cast<Async_Type>(ix));
+    OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
+
+bool
+Async::is_cancelled()
+    ALIAS:
+        is_cancelled = ASYNC_TYPE_IS_CANCEL
+        is_error     = ASYNC_TYPE_IS_ERROR
+        is_value     = ASYNC_TYPE_IS_VALUE
+    INIT:
+        CXX_TRY
+    CODE:
+        RETVAL = THIS->has_type(static_cast<Async_Type>(ix));
+    OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH

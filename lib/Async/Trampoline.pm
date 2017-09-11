@@ -205,7 +205,7 @@ sub resolved_or :method {
     $str = $async->to_string
     $str = "$async"
 
-Low-level debugging stringfification that displays Async identity and type.
+Low-level debugging stringification that displays Async identity and type.
 
 =cut
 
@@ -235,12 +235,6 @@ use overload
 Inspect the state of an Async (see L<"Async States"|/"ASYNC STATES">).
 
 =cut
-
-sub is_complete     :method { ... }  # TODO
-sub is_cancelled    :method { ... }  # TODO
-sub is_resolved     :method { ... }  # TODO
-sub is_error        :method { ... }  # TODO
-sub is_value        :method { ... }  # TODO
 
 1;
 
