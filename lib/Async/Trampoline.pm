@@ -4,6 +4,42 @@ use utf8;
 
 package Async::Trampoline;
 
+## no critic
+our $VERSION = '0.000001';
+$VERSION = eval $VERSION;
+## use critic
+
+use XSLoader;
+XSLoader::load __PACKAGE__, $VERSION;
+
+use Async::Trampoline::Scheduler;
+
+use Exporter 'import';
+
+our %EXPORT_TAGS = (
+    all => [qw/
+        await
+        async
+        async_value
+        async_error
+        async_cancel
+    /],
+);
+
+our @EXPORT_OK = @{ $EXPORT_TAGS{all} };
+
+use overload
+    fallback => 1,
+    q("") => sub {
+        my ($self) = @_;
+        return $self->to_string;
+    };
+
+
+1;
+
+__END__
+
 =encoding utf8
 
 =head1 NAME
@@ -56,7 +92,7 @@ Async/recursive:
         my ($items, $i) = @_;
         return async_value $items if not $i:
         push @$items, $i--;
-        return async { loop($items, $i) };
+        return async { loop_async($items, $i) };
     }
 
     my $items = loop_async([], 5)->run_until_completion;
@@ -74,77 +110,69 @@ Each Async exists in one of these states:
             +-- Error
             +-- Value
 
-In Incomplete states, the Async will be processed in the future.
+In B<Incomplete> states, the Async will be processed in the future.
 At some point, the Async will transition to a completed state.
 
 In C<async> and C<await> callbacks,
 the Async will be updated to the state of the return value of that callback.
 
-Completed states are terminal.
+B<Completed> states are terminal.
 The Asyncs are not subject to further processing.
 
-A Cancelled Async represents an aborted computation.
+A B<Cancelled Async> represents an aborted computation.
 They have no value.
 Cancellation is not an error,
 but C<run_until_completion()> will die when the Async was cancelled.
 You can cancel a computation via the C<async_cancel> constructor.
 
-Resolved Async are Completed Asyncs that finished their computation
+B<Resolved> Asyncs are Completed Asyncs that finished their computation
 and have a value, either an Error or a Value upon success.
 
-An Error Async indicates that a runtime error occurred.
+An B<Error> Async indicates that a runtime error occurred.
 Error Asyncs can be created with the C<async_error> constructor,
 or when a callback throws.
 The exception will be rethrown by C<run_until_completion()>.
 
-A Value Async contains a list of Perl values.
+A B<Value> Async contains a list of Perl values.
 They can be created with the C<async_value> constructor.
 The values will be returned by C<run_until_completion()>.
 To access the values of an Async, you can C<await> it.
 
-=head1 FUNCTIONS
-
-=cut
-
-## no critic
-our $VERSION = '0.000001';
-$VERSION = eval $VERSION;
-## use critic
-
-use XSLoader;
-XSLoader::load __PACKAGE__, $VERSION;
-
-use Exporter 'import';
-
-our %EXPORT_TAGS = (
-    all => [qw/
-        await
-        async
-        async_value
-        async_error
-        async_cancel
-    /],
-);
-
-our @EXPORT_OK = @{ $EXPORT_TAGS{all} };
-
-use constant DEBUG => $ENV{ASYNC_TRAMPOLINE_DEBUG};
-
-use Async::Trampoline::Scheduler;
-
-## no critic (ProhibitSubroutinePrototypes)
-
-=head2 run_until_completion
-
-    @result = $async->run_until_completion
-
-TODO
+=head1 CREATING ASYNCS
 
 =head2 async
 
     $async = async { ... }
 
-TODO
+Create an Incomplete Async with a code block.
+The callback must return an Async.
+When the Async is evaluated,
+this Async is updated to the state of the returned Async.
+
+=head2 async_value
+
+    $async = async_value @values
+
+Create a Value Async containing a list of values.
+Use this to return values from an Async callback.
+
+=head2 async_error
+
+    $async = async_error $error
+
+Create an Error Async with the specified error.
+The error may be a string or error object.
+Use this to fail an Async.
+Alternatively, you can C<die()> inside the Async callback.
+
+=head2 async_cancel
+
+    $async = async_cancel
+
+Create a Cancelled Async.
+Use this to abort an Async without using an error.
+
+=head1 COMBINING ASYNCS
 
 =head2 await
 
@@ -158,37 +186,40 @@ TODO
         ...
     });
 
-TODO
-
-=head2 async_value
-
-    $async = async_value @values
-
-TODO
-
-=head2 async_error
-
-    $async = async_error $error
-
-TODO
-
-=head2 async_cancel
-
-    $async = async_cancel
-
-TODO
+Wait until the C<$dependency> Async has a value,
+then call the callback with the values as arguments.
+If the dependency was cancelled or has an error,
+the async is updated to that state.
+The callback must return an Async.
+Use this to chain Asyncs.
+It does not directly return the values.
 
 =head2 resolved_or
 
     $async = $first_async->resolved_or($alternative_async)
 
-TODO
+Evaluate to the C<$first_async> if it was Resolved (Error or Value),
+otherwise to the C<$alternative_async>.
+This creates a new Async that will be updated
+when the dependencies become available.
+Use this as a fallback against cancellation.
 
-=cut
+=head1 OTHER FUNCTIONS
 
-sub resolved_or :method {
-    goto &async_resolved_or;
-}
+=head2 run_until_completion
+
+    @result = $async->run_until_completion
+
+Creates and event loop and blocks until the C<$async> is completed.
+If it was cancelled, throws an exception.
+If it was an error, rethrows that error.
+If it was a value, the values are returned as a list.
+
+This call should be used sparingly, usually once per program.
+Sharing Asyncs between multiple event loops may lead to unexpected results.
+
+If you want to use the results of an Async to continue within an Async context,
+you usually want to C<await()> the Async instead.
 
 =head2 to_string
 
@@ -196,15 +227,6 @@ sub resolved_or :method {
     $str = "$async"
 
 Low-level debugging stringification that displays Async identity and type.
-
-=cut
-
-use overload
-    fallback => 1,
-    q("") => sub {
-        my ($self) = @_;
-        return $self->to_string;
-    };
 
 =head2 is_complete
 
@@ -223,12 +245,6 @@ use overload
     $bool = $async->is_value;
 
 Inspect the state of an Async (see L<"Async States"|/"ASYNC STATES">).
-
-=cut
-
-1;
-
-__END__
 
 =head1 AUTHOR
 
