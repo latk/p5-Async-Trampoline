@@ -21,10 +21,10 @@ it q(reuses queue space successfully) => sub {
     $scheduler->enqueue(async_value 0);
     for my $x (@values[1 .. $#values]) {
         $scheduler->enqueue(async_value $x);
-        push @results, run_until_completion $scheduler->dequeue;
+        push @results, $scheduler->dequeue->run_until_completion;
     }
     while (my ($async) = $scheduler->dequeue) {
-        push @results, run_until_completion $async;
+        push @results, $async->run_until_completion;
     }
     is "@results", "@values";
 };
@@ -35,7 +35,7 @@ it q(handles many Asyncs) => sub {
     $scheduler->enqueue(async_value $_) for @values;
     my @results;
     while (my ($async) = $scheduler->dequeue) {
-        push @results, run_until_completion $async;
+        push @results, $async->run_until_completion;
     }
     is "@results", "@values";
 };
@@ -49,10 +49,10 @@ it q(handles complicated access pattern) => sub {
             $scheduler->enqueue(async_value $_) for 0 .. $round - 1;
             for my $x ($round .. 2 * $round) {
                 $scheduler->enqueue(async_value $x);
-                push @results, run_until_completion $scheduler->dequeue;
+                push @results, $scheduler->dequeue->run_until_completion;
             }
             while (my ($async) = $scheduler->dequeue) {
-                push @results, run_until_completion $async;
+                push @results, $async->run_until_completion;
             }
             my @values = (0 .. 2 * $round);
             is "@results", "@values";
@@ -77,7 +77,7 @@ it q(discards dupes) => sub {
 
     is 0+@result_asyncs, 0+@values;
 
-    my @results = map { run_until_completion $_ } @result_asyncs;
+    my @results = map { $_->run_until_completion } @result_asyncs;
 
     is "@results", "@values";
 };
@@ -91,12 +91,12 @@ it q(knows about task dependencies) => sub {
     my $starter_again = $scheduler->dequeue;
     is $starter, $starter_again, q(got starter async back);
     is scalar $scheduler->dequeue, undef, q(queue has no further elems);
-    run_until_completion $starter_again;
+    $starter_again->run_until_completion;
     $scheduler->complete($starter_again);
 
     my @results;
     while (my ($async) = $scheduler->dequeue) {
-        push @results, run_until_completion $async;
+        push @results, $async->run_until_completion;
     }
     @results = sort @results;
 

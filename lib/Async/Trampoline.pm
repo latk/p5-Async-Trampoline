@@ -48,7 +48,7 @@ Synchronous/recursive:
         return loop($items, $i);  # may lead to deep recursion!
     }
 
-    loop([], 5);
+    my $items = loop([], 5);
 
 Async/recursive:
 
@@ -59,7 +59,7 @@ Async/recursive:
         return async { loop($items, $i) };
     }
 
-    run_until_completion loop_async([], 5);
+    my $items = loop_async([], 5)->run_until_completion;
 
 =head1 ASYNC STATES
 
@@ -118,7 +118,6 @@ use Exporter 'import';
 
 our %EXPORT_TAGS = (
     all => [qw/
-        run_until_completion
         await
         async
         async_value
@@ -136,8 +135,6 @@ use Async::Trampoline::Scheduler;
 ## no critic (ProhibitSubroutinePrototypes)
 
 =head2 run_until_completion
-
-    @result = run_until_completion $async
 
     @result = $async->run_until_completion
 
@@ -183,10 +180,7 @@ TODO
 
 =head2 resolved_or
 
-=head2 async_resolved_or
-
     $async = $first_async->resolved_or($alternative_async)
-    $async = async_resolved_or $first_async, $alternative_async
 
 TODO
 

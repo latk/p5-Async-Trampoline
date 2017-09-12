@@ -98,8 +98,6 @@ To access the values of an Async, you can `await` it.
 
 ## run\_until\_completion
 
-    @result = run_until_completion $async
-
     @result = $async->run_until_completion
 
 TODO
@@ -144,10 +142,7 @@ TODO
 
 ## resolved\_or
 
-## async\_resolved\_or
-
     $async = $first_async->resolved_or($alternative_async)
-    $async = async_resolved_or $first_async, $alternative_async
 
 TODO
 
