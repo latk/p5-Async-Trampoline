@@ -152,13 +152,22 @@ It does not directly return the values.
 
 ## resolved\_or
 
-    $async = $first_async->resolved_or($alternative_async)
+## value\_or
 
-Evaluate to the `$first_async` if it was Resolved (Error or Value),
-otherwise to the `$alternative_async`.
+    $async = $first_async->resolved_or($alternative_async)
+    $async = $first_async->value_or($alternative_async)
+
+Evaluate the `$first_async`.
+Upon success, the Async is updated to the state of the `$first_async`.
+On failure, the `$second_async` is evaluated instead.
 This creates a new Async that will be updated
 when the dependencies become available.
+
+**resolved\_or** succeeds on Value or Error, and fails on Cancelled.
 Use this as a fallback against cancellation.
+
+**value\_or** only succeeds on Value, and fails on Cancelled or Error.
+Use this as a try-catch to provide default values upon errors.
 
 ## complete\_then
 

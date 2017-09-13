@@ -91,6 +91,21 @@ describe q(resolved_or()) => sub {
     };
 };
 
+describe q(value_or()) => sub {
+    it q(returns first value) => sub {
+        my $async = async_value("first!")->value_or(async_cancel);
+        is $async->run_until_completion, "first!";
+    };
+
+    it qq(returns second value on $_->[0]) => sub {
+        my (undef, $first) = @$_;
+        my $async = $first->value_or(async_value "fallback");
+        is $async->run_until_completion, "fallback";
+    } for
+        [cancel => async_cancel],
+        [error  => async_error "boo!"];
+};
+
 describe q(resolved_then()) => sub {
     it q(returns the second value) => sub {
         my $async = async_value("nope")->resolved_then(async_value "my result");

@@ -257,6 +257,9 @@ async_cancel()
 Async*
 Async::resolved_or(orelse)
         Async*  orelse;
+    ALIAS:
+        resolved_or = ASYNC_TYPE_CATEGORY_RESOLVED
+        value_or    = ASYNC_TYPE_IS_VALUE
     INIT:
         CXX_TRY
     CODE:
@@ -264,7 +267,7 @@ Async::resolved_or(orelse)
         AsyncRef self = Async::alloc();
         self->set_to_Flow({
                 THIS, orelse,
-                Async_Type::CATEGORY_RESOLVED,
+                static_cast<Async_Type>(ix),
                 Async_Flow::OR,
         });
         RETVAL = self.ptr_with_ownership();

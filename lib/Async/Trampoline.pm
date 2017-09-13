@@ -196,13 +196,22 @@ It does not directly return the values.
 
 =head2 resolved_or
 
-    $async = $first_async->resolved_or($alternative_async)
+=head2 value_or
 
-Evaluate to the C<$first_async> if it was Resolved (Error or Value),
-otherwise to the C<$alternative_async>.
+    $async = $first_async->resolved_or($alternative_async)
+    $async = $first_async->value_or($alternative_async)
+
+Evaluate the C<$first_async>.
+Upon success, the Async is updated to the state of the C<$first_async>.
+On failure, the C<$second_async> is evaluated instead.
 This creates a new Async that will be updated
 when the dependencies become available.
+
+B<resolved_or> succeeds on Value or Error, and fails on Cancelled.
 Use this as a fallback against cancellation.
+
+B<value_or> only succeeds on Value, and fails on Cancelled or Error.
+Use this as a try-catch to provide default values upon errors.
 
 =head2 complete_then
 
