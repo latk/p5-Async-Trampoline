@@ -204,15 +204,22 @@ This creates a new Async that will be updated
 when the dependencies become available.
 Use this as a fallback against cancellation.
 
+=head2 complete_then
+
 =head2 resolved_then
 
+    $async = $first_async->complete_then($second_async)
     $async = $first_async->resolved_then($second_async)
 
 Evaluate the C<$first_async>.
-Cancel if the C<$first_async> was Cancelled.
-Evaluate to the C<$second_async> otherwise.
+Upon success, the C<$second_async> is evaluated.
+On failure, the Async is updated to the state of the C<$first_async>.
 This creates a new Async that will be updated
 when the dependencies become available.
+
+B<complete_then> always succeeds (Cancelled, Error, Value).
+
+B<resolved_then> succeeds on Error or Value, and fails on Cancelled.
 
 =head1 OTHER FUNCTIONS
 

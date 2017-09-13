@@ -115,6 +115,13 @@ public:
     }
 };
 
+#define ASYNC_TYPE_GET(name) (static_cast<I32>(Async_Type::name))
+#define ASYNC_TYPE_CATEGORY_COMPLETE    ASYNC_TYPE_GET(CATEGORY_COMPLETE)
+#define ASYNC_TYPE_CATEGORY_RESOLVED    ASYNC_TYPE_GET(CATEGORY_RESOLVED)
+#define ASYNC_TYPE_IS_CANCEL            ASYNC_TYPE_GET(IS_CANCEL)
+#define ASYNC_TYPE_IS_ERROR             ASYNC_TYPE_GET(IS_ERROR)
+#define ASYNC_TYPE_IS_VALUE             ASYNC_TYPE_GET(IS_VALUE)
+
 MODULE = Async::Trampoline PACKAGE = Async::Trampoline
 
 void
@@ -269,6 +276,9 @@ Async::resolved_or(orelse)
 Async*
 Async::resolved_then(then)
         Async*  then;
+    ALIAS:
+        complete_then = ASYNC_TYPE_CATEGORY_COMPLETE
+        resolved_then = ASYNC_TYPE_CATEGORY_RESOLVED
     INIT:
         CXX_TRY
     CODE:
@@ -276,7 +286,7 @@ Async::resolved_then(then)
         AsyncRef self = Async::alloc();
         self->set_to_Flow({
                 THIS, then,
-                Async_Type::CATEGORY_RESOLVED,
+                static_cast<Async_Type>(ix),
                 Async_Flow::THEN,
         });
         RETVAL = self.ptr_with_ownership();
@@ -299,13 +309,6 @@ Async::to_string()
     OUTPUT: RETVAL
     CLEANUP:
         CXX_CATCH
-
-#define ASYNC_TYPE_GET(name) (static_cast<I32>(Async_Type::name))
-#define ASYNC_TYPE_CATEGORY_COMPLETE ASYNC_TYPE_GET(CATEGORY_COMPLETE)
-#define ASYNC_TYPE_CATEGORY_RESOLVED ASYNC_TYPE_GET(CATEGORY_RESOLVED)
-#define ASYNC_TYPE_IS_CANCEL ASYNC_TYPE_GET(IS_CANCEL)
-#define ASYNC_TYPE_IS_ERROR ASYNC_TYPE_GET(IS_ERROR)
-#define ASYNC_TYPE_IS_VALUE ASYNC_TYPE_GET(IS_VALUE)
 
 bool
 Async::is_complete()

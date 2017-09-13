@@ -109,6 +109,17 @@ describe q(resolved_then()) => sub {
     };
 };
 
+describe q(complete_then) => sub {
+    it qq(returns the second value for $_->[0]) => sub {
+        my (undef, $first) = @$_;
+        my $async = $first->complete_then(async_value "my value");
+        is $async->run_until_completion, "my value";
+    } for
+        [cancel => async_cancel],
+        [error  => async_error "some error"],
+        [value  => async_value 1, 2, 3];
+};
+
 describe q(is_complete()) => sub {
     my $async = async { return async_value; };
 
