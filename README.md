@@ -160,6 +160,16 @@ This creates a new Async that will be updated
 when the dependencies become available.
 Use this as a fallback against cancellation.
 
+## resolved\_then
+
+    $async = $first_async->resolved_then($second_async)
+
+Evaluate the `$first_async`.
+Cancel if the `$first_async` was Cancelled.
+Evaluate to the `$second_async` otherwise.
+This creates a new Async that will be updated
+when the dependencies become available.
+
 # OTHER FUNCTIONS
 
 ## run\_until\_completion

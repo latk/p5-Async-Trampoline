@@ -250,13 +250,27 @@ async_cancel()
 Async*
 Async::resolved_or(orelse)
         Async*  orelse;
-    PROTOTYPE: DISABLE
     INIT:
         CXX_TRY
     CODE:
     {
         AsyncRef self = Async::alloc();
         self->set_to_ResolvedOr(THIS, orelse);
+        RETVAL = self.ptr_with_ownership();
+    }
+    OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
+
+Async*
+Async::resolved_then(then)
+        Async*  then;
+    INIT:
+        CXX_TRY
+    CODE:
+    {
+        AsyncRef self = Async::alloc();
+        self->set_to_ResolvedThen(THIS, then);
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL

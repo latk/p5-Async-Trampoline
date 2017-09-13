@@ -204,6 +204,16 @@ This creates a new Async that will be updated
 when the dependencies become available.
 Use this as a fallback against cancellation.
 
+=head2 resolved_then
+
+    $async = $first_async->resolved_then($second_async)
+
+Evaluate the C<$first_async>.
+Cancel if the C<$first_async> was Cancelled.
+Evaluate to the C<$second_async> otherwise.
+This creates a new Async that will be updated
+when the dependencies become available.
+
 =head1 OTHER FUNCTIONS
 
 =head2 run_until_completion

@@ -65,6 +65,12 @@ describe q(resolved_or()) => sub {
         is $async->run_until_completion, 42;
     };
 
+    it q(returns the first error) => sub {
+        my $async = async_error("hah!")->resolved_or(async_cancel);
+        throws_ok { $async->run_until_completion }
+            qr/^hah!/;
+    };
+
     it q(skips cancelled values) => sub {
         my $async = async_cancel->resolved_or(async_value "foo");
         is $async->run_until_completion, "foo";
@@ -82,6 +88,24 @@ describe q(resolved_or()) => sub {
 
         throws_ok { $async->run_until_completion }
             qr/^run_until_completion\(\): Async was cancelled/;
+    };
+};
+
+describe q(resolved_then()) => sub {
+    it q(returns the second value) => sub {
+        my $async = async_value("nope")->resolved_then(async_value "my result");
+        is $async->run_until_completion, "my result";
+    };
+
+    it q(returns the second value on left error) => sub {
+        my $async = async_error("fail!")->resolved_then(async_value "u got dis");
+        is $async->run_until_completion, "u got dis";
+    };
+
+    it q(it cancelled on left cancel) => sub {
+        my $async = async_cancel->resolved_then(async_error "ninja");
+        eval { $async->run_until_completion };
+        ok $async->is_cancelled;
     };
 };
 
