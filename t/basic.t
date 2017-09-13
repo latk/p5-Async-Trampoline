@@ -120,6 +120,23 @@ describe q(complete_then) => sub {
         [value  => async_value 1, 2, 3];
 };
 
+describe q(value_then()) => sub {
+    it q(returns the second value) => sub {
+        my $async = (async_value "first")->value_then(async_value "second");
+        is $async->run_until_completion, "second";
+    };
+
+    it qq(keeps first state on $_->[0]) => sub {
+        my (undef, $first, $is_correct) = @$_;
+        my $async = $first->value_then(async_value "nope");
+        eval { $async->run_until_completion };
+        ok $async->$is_correct
+            or diag "Async: $async";
+    } for
+        [cancel => async_cancel, 'is_cancelled'],
+        [error  => (async_error "foo"), 'is_error'];
+};
+
 describe q(is_complete()) => sub {
     my $async = async { return async_value; };
 

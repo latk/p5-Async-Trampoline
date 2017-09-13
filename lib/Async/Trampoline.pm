@@ -208,8 +208,11 @@ Use this as a fallback against cancellation.
 
 =head2 resolved_then
 
+=head2 value_then
+
     $async = $first_async->complete_then($second_async)
     $async = $first_async->resolved_then($second_async)
+    $async = $first_async->value_then($second_async)
 
 Evaluate the C<$first_async>.
 Upon success, the C<$second_async> is evaluated.
@@ -220,6 +223,17 @@ when the dependencies become available.
 B<complete_then> always succeeds (Cancelled, Error, Value).
 
 B<resolved_then> succeeds on Error or Value, and fails on Cancelled.
+
+B<value_then> succeeds on Value, and fails on Cancelled or Error.
+With regards to error propagation,
+C<< $x->value_then($y) >>
+behaves just like
+C<< $x->await(sub { return $y } >>.
+
+Use these functions to sequence actions on success and discarding their value.
+They are like a semicolon C<;> in Perl,
+but with different levels of error propagation.
+You may want to sequence Asyncs if any Async causes side effects.
 
 =head1 OTHER FUNCTIONS
 

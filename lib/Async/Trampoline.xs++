@@ -277,8 +277,9 @@ Async*
 Async::resolved_then(then)
         Async*  then;
     ALIAS:
-        complete_then = ASYNC_TYPE_CATEGORY_COMPLETE
-        resolved_then = ASYNC_TYPE_CATEGORY_RESOLVED
+        complete_then   = ASYNC_TYPE_CATEGORY_COMPLETE
+        resolved_then   = ASYNC_TYPE_CATEGORY_RESOLVED
+        value_then      = ASYNC_TYPE_IS_VALUE
     INIT:
         CXX_TRY
     CODE:

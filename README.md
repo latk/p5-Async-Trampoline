@@ -164,8 +164,11 @@ Use this as a fallback against cancellation.
 
 ## resolved\_then
 
+## value\_then
+
     $async = $first_async->complete_then($second_async)
     $async = $first_async->resolved_then($second_async)
+    $async = $first_async->value_then($second_async)
 
 Evaluate the `$first_async`.
 Upon success, the `$second_async` is evaluated.
@@ -176,6 +179,17 @@ when the dependencies become available.
 **complete\_then** always succeeds (Cancelled, Error, Value).
 
 **resolved\_then** succeeds on Error or Value, and fails on Cancelled.
+
+**value\_then** succeeds on Value, and fails on Cancelled or Error.
+With regards to error propagation,
+`$x->value_then($y)`
+behaves just like
+`$x->await(sub { return $y }`.
+
+Use these functions to sequence actions on success and discarding their value.
+They are like a semicolon `;` in Perl,
+but with different levels of error propagation.
+You may want to sequence Asyncs if any Async causes side effects.
 
 # OTHER FUNCTIONS
 
