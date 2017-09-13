@@ -13,51 +13,18 @@
     assert((self)->type == Async_Type::IS_UNINITIALIZED);                   \
 } while (0)
 
-// Binary
+static void set_to_Binary(Async& self, Async_Type, AsyncRef, AsyncRef);
 
-static
-void
-set_to_Binary(
-        Async&          self,
-        enum Async_Type type,
-        AsyncRef        left,
-        AsyncRef        right)
-{
-    ASSERT_INIT(&self);
-    assert(left);
-    assert(right);
-
-    left.fold();
-    right.fold();
-
-    self.type = type;
-    new (&self.as_binary) Async_Pair {
-        std::move(left),
-        std::move(right),
-    };
-}
-
-static
-void
-binary_clear(
-        Async*          self,
-        enum Async_Type type)
-{
-    assert(self);
-    assert(self->type == type);
-
-    self->type = Async_Type::IS_UNINITIALIZED;
-    self->as_binary.~Async_Pair();
-}
+static void Async_Ptr_clear        (Async* self);
+static void Async_RawThunk_clear   (Async* self);
+static void Async_Thunk_clear      (Async* self);
+static void Async_Binary_clear     (Async& self, Async_Type type);
+static void Async_Flow_clear       (Async& self);
+static void Async_Cancel_clear     (Async* self);
+static void Async_Error_clear      (Async* self);
+static void Async_Value_clear      (Async* self);
 
 // Polymorphic
-
-void Async_Ptr_clear        (Async* self);
-void Async_RawThunk_clear   (Async* self);
-void Async_Thunk_clear      (Async* self);
-void Async_Cancel_clear     (Async* self);
-void Async_Error_clear      (Async* self);
-void Async_Value_clear      (Async* self);
 
 auto Async::clear() -> void
 {
@@ -78,12 +45,10 @@ auto Async::clear() -> void
             Async_Thunk_clear(this);
             break;
         case Async_Type::IS_CONCAT:
-        case Async_Type::IS_COMPLETE_THEN:
-        case Async_Type::IS_RESOLVED_OR:
-        case Async_Type::IS_RESOLVED_THEN:
-        case Async_Type::IS_VALUE_OR:
-        case Async_Type::IS_VALUE_THEN:
-            binary_clear(this, type);
+            Async_Binary_clear(*this, type);
+            break;
+        case Async_Type::IS_FLOW:
+            Async_Flow_clear(*this);
             break;
 
         case Async_Type::CATEGORY_COMPLETE:
@@ -134,18 +99,16 @@ auto Async::set_from(Async&& other) -> void
             Async_Thunk_clear(&other);
             break;
         case Async_Type::IS_CONCAT:
-        case Async_Type::IS_COMPLETE_THEN:
-        case Async_Type::IS_RESOLVED_OR:
-        case Async_Type::IS_RESOLVED_THEN:
-        case Async_Type::IS_VALUE_OR:
-        case Async_Type::IS_VALUE_THEN:
             set_to_Binary(
                     *this,
                     other.type,
                     std::move(other.as_binary.left),
                     std::move(other.as_binary.right));
-            binary_clear(&other, other.type);
+            Async_Binary_clear(other, other.type);
             break;
+        case Async_Type::IS_FLOW:
+            set_to_Flow(std::move(other.as_flow));
+            Async_Flow_clear(other);
 
         case Async_Type::CATEGORY_COMPLETE:
             assert(0);
@@ -272,12 +235,62 @@ Async_Thunk_clear(
     self->as_thunk.~Async_Thunk();
 }
 
-BINARY_INIT(Concat,          Async_Type::IS_CONCAT)
-BINARY_INIT(CompleteThen,    Async_Type::IS_COMPLETE_THEN)
-BINARY_INIT(ResolvedOr,      Async_Type::IS_RESOLVED_OR)
-BINARY_INIT(ResolvedThen,    Async_Type::IS_RESOLVED_THEN)
-BINARY_INIT(ValueOr,         Async_Type::IS_VALUE_OR)
-BINARY_INIT(ValueThen,       Async_Type::IS_VALUE_THEN)
+// Binary
+
+static void set_to_Binary(
+        Async&      self,
+        Async_Type  type,
+        AsyncRef    left,
+        AsyncRef    right)
+{
+    ASSERT_INIT(&self);
+    assert(left);
+    assert(right);
+
+    left.fold();
+    right.fold();
+
+    self.type = type;
+    new (&self.as_binary) Async_Pair {
+        std::move(left),
+        std::move(right),
+    };
+}
+
+static void Async_Binary_clear(
+        Async&      self,
+        Async_Type  type)
+{
+    assert(self.type == type);
+
+    self.type = Async_Type::IS_UNINITIALIZED;
+    self.as_binary.~Async_Pair();
+}
+
+BINARY_INIT(Concat,     Async_Type::IS_CONCAT)
+
+// Flow
+
+void Async::set_to_Flow(Async_Flow flow)
+{
+    ASSERT_INIT(this);
+    assert(flow.left);
+    assert(flow.right);
+
+    flow.left.fold();
+    flow.right.fold();
+
+    type = Async_Type::IS_FLOW;
+    new (&as_flow) Async_Flow { std::move(flow) };
+}
+
+static void Async_Flow_clear(Async& self)
+{
+    assert(self.type == Async_Type::IS_FLOW);
+
+    self.type = Async_Type::IS_UNINITIALIZED;
+    self.as_flow.~Async_Flow();
+}
 
 // Cancel
 

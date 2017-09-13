@@ -255,7 +255,11 @@ Async::resolved_or(orelse)
     CODE:
     {
         AsyncRef self = Async::alloc();
-        self->set_to_ResolvedOr(THIS, orelse);
+        self->set_to_Flow({
+                THIS, orelse,
+                Async_Type::CATEGORY_RESOLVED,
+                Async_Flow::OR,
+        });
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
@@ -270,7 +274,11 @@ Async::resolved_then(then)
     CODE:
     {
         AsyncRef self = Async::alloc();
-        self->set_to_ResolvedThen(THIS, then);
+        self->set_to_Flow({
+                THIS, then,
+                Async_Type::CATEGORY_RESOLVED,
+                Async_Flow::THEN,
+        });
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL

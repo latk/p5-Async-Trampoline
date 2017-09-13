@@ -28,11 +28,7 @@ enum class Async_Type
     IS_RAWTHUNK,
     IS_THUNK,
     IS_CONCAT,
-    IS_COMPLETE_THEN,
-    IS_RESOLVED_OR,
-    IS_RESOLVED_THEN,
-    IS_VALUE_OR,
-    IS_VALUE_THEN,
+    IS_FLOW,
 
     CATEGORY_COMPLETE,
     IS_CANCEL,
@@ -53,11 +49,7 @@ Async_Type_name(enum Async_Type type)
         case Async_Type::IS_RAWTHUNK:           return "IS_RAWTHUNK";
         case Async_Type::IS_THUNK:              return "IS_THUNK";
         case Async_Type::IS_CONCAT:             return "IS_CONCAT";
-        case Async_Type::IS_COMPLETE_THEN:      return "IS_COMPLETE_THEN";
-        case Async_Type::IS_RESOLVED_OR:        return "IS_RESOLVED_OR";
-        case Async_Type::IS_RESOLVED_THEN:      return "IS_RESOLVED_THEN";
-        case Async_Type::IS_VALUE_OR:           return "IS_VALUE_OR";
-        case Async_Type::IS_VALUE_THEN:         return "IS_VALUE_THEN";
+        case Async_Type::IS_FLOW:               return "IS_FLOW";
         case Async_Type::CATEGORY_COMPLETE:     return "CATEGORY_COMPLETE";
         case Async_Type::IS_CANCEL:             return "IS_CANCEL";
         case Async_Type::CATEGORY_RESOLVED:     return "CATEGORY_RESOLVED";
@@ -132,19 +124,28 @@ struct Async_Pair
     AsyncRef right;
 };
 
+struct Async_Flow
+{
+    AsyncRef left;
+    AsyncRef right;
+    Async_Type flow_type;
+    enum Direction { THEN, OR } direction;
+};
+
 struct Async_Uninitialized {};
 
 struct Async
 {
-    enum Async_Type type;
+    Async_Type type;
     size_t refcount;
     union {
-        Async_Uninitialized             as_uninitialized;
-        AsyncRef                        as_ptr;
-        struct Async_Thunk              as_thunk;
-        struct Async_Pair               as_binary;
-        Destructible                    as_error;
-        DestructibleTuple               as_value;
+        Async_Uninitialized as_uninitialized;
+        AsyncRef            as_ptr;
+        Async_Thunk         as_thunk;
+        Async_Pair          as_binary;
+        Async_Flow          as_flow;
+        Destructible        as_error;
+        DestructibleTuple   as_value;
     };
 
     Async() :
@@ -168,11 +169,7 @@ struct Async
     void set_to_RawThunk    (Async_RawThunk::Callback callback, AsyncRef dep);
     void set_to_Thunk       (Async_Thunk::Callback    callback, AsyncRef dep);
     void set_to_Concat      (AsyncRef left, AsyncRef right);
-    void set_to_CompleteThen(AsyncRef first, AsyncRef then);
-    void set_to_ResolvedOr  (AsyncRef first, AsyncRef orelse);
-    void set_to_ResolvedThen(AsyncRef first, AsyncRef then);
-    void set_to_ValueOr     (AsyncRef first, AsyncRef orelse);
-    void set_to_ValueThen   (AsyncRef first, AsyncRef then);
+    void set_to_Flow        (Async_Flow);
     void set_to_Cancel      ();
     void set_to_Error       (Destructible error);
     void set_to_Value       (DestructibleTuple values);

@@ -181,38 +181,33 @@ Async_Concat_eval(
     return EVAL_RETURN(NULL, NULL);
 }
 
-enum ControlFlow {
-    CONTROL_FLOW_THEN,
-    CONTROL_FLOW_OR,
-};
-
-static
-void
-eval_control_flow_op(
-        Async*  self,
-        enum Async_Type self_type,
-        enum Async_Type decision_type,
-        enum ControlFlow control_flow,
-        AsyncRef& next,
-        AsyncRef& blocked)
+void Async_Flow_eval(
+        Async*      self,
+        AsyncRef&   next,
+        AsyncRef&   blocked)
 {
     assert(self);
-    assert(self->type == self_type);
+    assert(self->type == Async_Type::IS_FLOW);
 
-    Async* left = self->as_binary.left.decay();
-    Async* right = self->as_binary.right.decay();
+    using Direction = Async_Flow::Direction;
+    Async* left = self->as_flow.left.decay();
+    Async* right = self->as_flow.right.decay();
+    Async_Type decision_type = self->as_flow.flow_type;
+    Direction flow_direction = self->as_flow.direction;
 
     ENSURE_DEPENDENCY(self, left);
 
     bool stay_left;
-    switch (control_flow)
+    switch (flow_direction)
     {
-        case CONTROL_FLOW_THEN:
+        case Direction::THEN:
             stay_left = !Async_has_category(left, decision_type);
             break;
-        case CONTROL_FLOW_OR:
+        case Direction::OR:
             stay_left = Async_has_category(left, decision_type);
             break;
+        default:
+            assert(0);
     }
 
     if (stay_left)
@@ -264,50 +259,8 @@ Async_eval(
             Async_Concat_eval(
                     self, next, blocked);
             break;
-        case Async_Type::IS_COMPLETE_THEN:
-            eval_control_flow_op(
-                    self,
-                    Async_Type::IS_COMPLETE_THEN,
-                    Async_Type::CATEGORY_COMPLETE,
-                    CONTROL_FLOW_THEN,
-                    next,
-                    blocked);
-            break;
-        case Async_Type::IS_RESOLVED_OR:
-            eval_control_flow_op(
-                    self,
-                    Async_Type::IS_RESOLVED_OR,
-                    Async_Type::CATEGORY_RESOLVED,
-                    CONTROL_FLOW_OR,
-                    next,
-                    blocked);
-            break;
-        case Async_Type::IS_RESOLVED_THEN:
-            eval_control_flow_op(
-                    self,
-                    Async_Type::IS_RESOLVED_THEN,
-                    Async_Type::CATEGORY_RESOLVED,
-                    CONTROL_FLOW_THEN,
-                    next,
-                    blocked);
-            break;
-        case Async_Type::IS_VALUE_OR:
-            eval_control_flow_op(
-                    self,
-                    Async_Type::IS_VALUE_OR,
-                    Async_Type::IS_VALUE,
-                    CONTROL_FLOW_OR,
-                    next,
-                    blocked);
-            break;
-        case Async_Type::IS_VALUE_THEN:
-            eval_control_flow_op(
-                    self,
-                    Async_Type::IS_VALUE_THEN,
-                    Async_Type::IS_VALUE,
-                    CONTROL_FLOW_THEN,
-                    next,
-                    blocked);
+        case Async_Type::IS_FLOW:
+            Async_Flow_eval(self, next, blocked);
             break;
 
         case Async_Type::CATEGORY_COMPLETE:
