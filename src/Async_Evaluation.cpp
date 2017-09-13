@@ -42,6 +42,7 @@ Async_run_until_completion(
 
         if (top.decay() != next.decay() && top.decay() != blocked.decay())
         {
+            ASYNC_LOG_DEBUG("completed %p\n", top.decay());
             assert(top->has_category(Async_Type::CATEGORY_COMPLETE));
             scheduler.complete(*top);
         }
@@ -51,6 +52,25 @@ Async_run_until_completion(
 }
 
 // Type-specific cases
+
+#define ENSURE_DEPENDENCY(self, dependency) do {                            \
+    if (!(dependency)->has_category(Async_Type::CATEGORY_COMPLETE))         \
+        return EVAL_RETURN((dependency), (self));                           \
+} while (0)
+
+static void Async_Ptr_eval(
+        Async*      self,
+        AsyncRef&   next,
+        AsyncRef&   blocked)
+{
+    assert(self);
+    assert(self->type == Async_Type::IS_PTR);
+
+    Async* dep = self->as_ptr.decay();
+    ENSURE_DEPENDENCY(self, dep);
+
+    return EVAL_RETURN(nullptr, nullptr);
+}
 
 static
 void
@@ -64,11 +84,6 @@ Async_RawThunk_eval(
 
     assert(0);  // TODO not implemented
 }
-
-#define ENSURE_DEPENDENCY(self, dependency) do {                            \
-    if (!(dependency)->has_category(Async_Type::CATEGORY_COMPLETE))         \
-        return EVAL_RETURN((dependency), (self));                           \
-} while (0)
 
 static
 void
@@ -245,7 +260,7 @@ Async_eval(
             assert(0);
             break;
         case Async_Type::IS_PTR:
-            Async_eval(&self->ptr_follow(), next, blocked);
+            Async_Ptr_eval(self, next, blocked);
             break;
         case Async_Type::IS_RAWTHUNK:
             Async_RawThunk_eval(
@@ -287,6 +302,6 @@ Async_eval(
     ASYNC_LOG_DEBUG(
             "... %p result: next=%p blocked=%p\n",
             self,
-            next,
-            blocked);
+            next.decay(),
+            blocked.decay());
 }

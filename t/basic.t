@@ -59,6 +59,25 @@ describe q(monad laws) => sub {
     };
 };
 
+describe q(await()) => sub {
+    it q(can evaluate thunk dependencies) => sub {
+        my $async = await async { async_value "a" } => sub {
+            my ($val) = @_;
+            return async_value "$val b";
+        };
+        is $async->run_until_completion, "a b";
+    };
+};
+
+describe q(async()) => sub {
+    it q(handles results with multiple references) => sub {
+        my $dep = async { async_value "value" };
+        my $dep_with_multiple_refs = $dep->complete_then($dep);
+        my $async = async { $dep_with_multiple_refs };
+        is $async->run_until_completion, "value";
+    };
+};
+
 describe q(resolved_or()) => sub {
     it q(returns the first value) => sub {
         my $async = async_value(42)->resolved_or(async_cancel);

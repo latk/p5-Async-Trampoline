@@ -138,7 +138,10 @@ auto Async::set_from(Async&& other) -> void
 
 auto Async::operator=(Async& other) -> Async&
 {
-    ASYNC_LOG_DEBUG("unify %p with %p\n", this, &other);
+    ASYNC_LOG_DEBUG("unify %p with %p (%2d %s)\n",
+            this, &other,
+            other.type,
+            Async_Type_name(other.type));
 
     // save other in case we might own it
     AsyncRef unref_me{};
