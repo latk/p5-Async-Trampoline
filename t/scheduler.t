@@ -91,7 +91,6 @@ it q(knows about task dependencies) => sub {
     my $starter_again = $scheduler->dequeue;
     is $starter, $starter_again, q(got starter async back);
     is scalar $scheduler->dequeue, undef, q(queue has no further elems);
-    $starter_again->run_until_completion;
     $scheduler->complete($starter_again);
 
     my @results;

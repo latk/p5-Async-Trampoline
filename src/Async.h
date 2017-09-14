@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <functional>
+#include <vector>
 
 #ifndef ASYNC_TRAMPOLINE_DEBUG
 #define ASYNC_TRAMPOLINE_DEBUG 0
@@ -147,14 +148,16 @@ struct Async
         Destructible        as_error;
         DestructibleTuple   as_value;
     };
+    std::vector<AsyncRef> blocked;
 
     Async() :
         type{Async_Type::IS_UNINITIALIZED},
         refcount{1},
-        as_ptr{nullptr}
+        as_ptr{nullptr},
+        blocked{}
     { }
     Async(Async&& other) : Async{} { set_from(std::move(other)); }
-    ~Async() { clear(); }
+    ~Async() { assert(blocked.size() == 0); clear(); }
 
     auto ref() noexcept -> Async& { refcount++; return *this; }
     auto unref() -> void;

@@ -77,6 +77,8 @@ auto Async::set_from(Async&& other) -> void
 {
     assert(type == Async_Type::IS_UNINITIALIZED);
 
+    assert(other.blocked.size() == 0);
+
     switch (other.type)
     {
         case Async_Type::IS_UNINITIALIZED:
@@ -140,7 +142,7 @@ auto Async::operator=(Async& other) -> Async&
 {
     ASYNC_LOG_DEBUG("unify %p with %p (%2d %s)\n",
             this, &other,
-            other.type,
+            static_cast<int>(other.type),
             Async_Type_name(other.type));
 
     // save other in case we might own it

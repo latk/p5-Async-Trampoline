@@ -50,20 +50,20 @@ public:
      *
      *      blocked_async: dependency_async
      *
-     *  dependency_async: Async const&
+     *  dependency_async: Async&
      *      must be completed first.
      *  blocked_async: AsyncRef
      *      is blocked until the "dependency_async" is completed-
      */
-    auto block_on(Async const& dependency_async, AsyncRef blocked_async) -> void;
+    auto block_on(Async& dependency_async, AsyncRef blocked_async) -> void;
 
     /** Mark an item as completed.
      *
      *  Any items that block on the completed items will be enqueued in an
      *  unspecified order.
      *
-     *  async: Async const&
+     *  async: Async&
      *      a completed item.
      */
-    auto complete(Async const& async) -> void;
+    auto complete(Async& async) -> void;
 };

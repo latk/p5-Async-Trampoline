@@ -2,7 +2,6 @@
 
 #include "CircularBuffer.h"
 
-#include <unordered_map>
 #include <unordered_set>
 
 #ifndef ASYNC_TRAMPOLINE_SCHEDULER_DEBUG
@@ -21,7 +20,7 @@
 class Async_Trampoline_Scheduler::Impl {
     CircularBuffer<AsyncRef> runnable_queue{};
     std::unordered_set<Async const*> runnable_enqueued{};
-    std::unordered_multimap<Async const*, AsyncRef> blocked{};
+    // std::unordered_multimap<Async const*, AsyncRef> blocked{};
 
 public:
 
@@ -31,8 +30,8 @@ public:
     auto queue_size() const -> size_t { return runnable_queue.size(); }
     void enqueue(AsyncRef async);
     AsyncRef dequeue();
-    void block_on(Async const& dependency_async, AsyncRef blocked_async);
-    void complete(Async const& async);
+    void block_on(Async& dependency_async, AsyncRef blocked_async);
+    void complete(Async& async);
 };
 
 // == The Public C++ Interface ==
@@ -59,12 +58,12 @@ auto Async_Trampoline_Scheduler::dequeue() -> AsyncRef
 }
 
 auto Async_Trampoline_Scheduler::block_on(
-        Async const& dependency_async, AsyncRef blocked_async) -> void
+        Async& dependency_async, AsyncRef blocked_async) -> void
 {
     m_impl->block_on(dependency_async, std::move(blocked_async));
 }
 
-auto Async_Trampoline_Scheduler::complete(Async const& async) -> void
+auto Async_Trampoline_Scheduler::complete(Async& async) -> void
 {
     m_impl->complete(async);
 }
@@ -75,15 +74,13 @@ auto Async_Trampoline_Scheduler::complete(Async const& async) -> void
     "Scheduler { "                                                          \
         "queue={ start=%zu size=%ld storage.size=%ld } "                    \
         "runnable_enqueued=%zu "                                            \
-        "blocked_on=%zu "                                                   \
     "}"
 
 #define SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(self)                          \
     (self).runnable_queue._internal_start(),                                \
     (self).runnable_queue.size(),                                           \
     (self).runnable_queue.capacity(),                                       \
-    (self).runnable_enqueued.size(),                                        \
-    (self).blocked.size()
+    (self).runnable_enqueued.size(),
 
 #define ASYNC_FORMAT "<Async 0x%zx %s>"
 #define ASYNC_FORMAT_ARGS(async) (size_t) (async), Async_Type_name((async)->type)
@@ -124,14 +121,14 @@ void Async_Trampoline_Scheduler::Impl::enqueue(AsyncRef async)
 }
 
 void Async_Trampoline_Scheduler::Impl::block_on(
-        Async const& dependency_async, AsyncRef blocked_async)
+        Async& dependency_async, AsyncRef blocked_async)
 {
     LOG_DEBUG(
         "dependency of " ASYNC_FORMAT " on " ASYNC_FORMAT "\n",
         ASYNC_FORMAT_ARGS(blocked_async.decay()),
         ASYNC_FORMAT_ARGS(&dependency_async));
 
-    blocked.insert({&dependency_async, std::move(blocked_async)});
+    dependency_async.blocked.emplace_back(std::move(blocked_async));
 }
 
 AsyncRef Async_Trampoline_Scheduler::Impl::dequeue()
@@ -155,21 +152,16 @@ AsyncRef Async_Trampoline_Scheduler::Impl::dequeue()
     return async;
 }
 
-void Async_Trampoline_Scheduler::Impl::complete(Async const& async)
+void Async_Trampoline_Scheduler::Impl::complete(Async& async)
 {
     LOG_DEBUG("completing %p\n", &async);
 
-    auto count = blocked.count(&async);
-    LOG_DEBUG("    '-> %zu dependencies\n", count);
+    LOG_DEBUG("    '-> %zu dependencies\n", async.blocked.size());
 
-    if (count == 0)
+    if (async.blocked.size() == 0)
         return;
 
-    for (auto it = blocked.find(&async)
-            ; it != blocked.end()
-            ; it = blocked.find(&async))
-    {
-        enqueue(std::move(it->second));
-        blocked.erase(it);
-    }
+    for (auto& ref : async.blocked)
+        enqueue(std::move(ref));
+    async.blocked.clear();
 }
