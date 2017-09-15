@@ -5,19 +5,39 @@
 #include <cassert>
 #include <memory>
 
+#define DESTRUCTIBLE_FORMAT "<%p refs=%zu \"%s\">"
+#define DESTRUCTIBLE_FORMAT_ARGS_BORROWED(vtable, data)                     \
+    (data),                                                                 \
+    (vtable)->get_refcount((data)),                                         \
+    (vtable)->get_stringification((data))
+#define DESTRUCTIBLE_FORMAT_ARGS(d)                                         \
+    DESTRUCTIBLE_FORMAT_ARGS_BORROWED((d).vtable, (d).data)
+
 struct Destructible_Vtable {
     using DestroyT = void (*)(void* data);
     using CopyT = void* (*)(void* data);
+    using GetRefcntT = size_t (*)(void* data);
+    using GetStringficationT = const char* (*)(void* data);
 
     DestroyT destroy;
     CopyT copy;
+    GetRefcntT get_refcount;
+    GetStringficationT get_stringification;
 
-    Destructible_Vtable(DestroyT destroy, CopyT copy) :
+    Destructible_Vtable(
+            DestroyT destroy,
+            CopyT copy,
+            GetRefcntT get_refcount,
+            GetStringficationT get_stringification) :
         destroy{destroy},
-        copy{copy}
+        copy{copy},
+        get_refcount{get_refcount},
+        get_stringification{get_stringification}
     {
         assert(destroy);
         assert(copy);
+        assert(get_refcount);
+        assert(get_stringification);
     }
 };
 

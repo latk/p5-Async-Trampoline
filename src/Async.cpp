@@ -39,3 +39,8 @@ auto Async::ptr_follow() -> Async&
 
     return ptr.get();
 }
+
+auto Async::add_blocked(AsyncRef b) -> void
+{
+    ptr_follow().blocked.emplace_back(std::move(b));
+}

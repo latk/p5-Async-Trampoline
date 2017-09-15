@@ -67,7 +67,14 @@ static void Async_Ptr_eval(
     assert(self->type == Async_Type::IS_PTR);
 
     Async* dep = self->as_ptr.decay();
+
+    ASYNC_LOG_DEBUG("eval Ptr %p dep=%p\n", self, dep);
+
     ENSURE_DEPENDENCY(self, dep);
+
+    Async* followed = &self->ptr_follow();
+    if (dep != followed)
+        self->as_ptr = followed;
 
     return EVAL_RETURN(nullptr, nullptr);
 }

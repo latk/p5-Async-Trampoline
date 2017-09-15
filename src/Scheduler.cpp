@@ -80,10 +80,7 @@ auto Async_Trampoline_Scheduler::complete(Async& async) -> void
     (self).runnable_queue._internal_start(),                                \
     (self).runnable_queue.size(),                                           \
     (self).runnable_queue.capacity(),                                       \
-    (self).runnable_enqueued.size(),
-
-#define ASYNC_FORMAT "<Async 0x%zx %s>"
-#define ASYNC_FORMAT_ARGS(async) (size_t) (async), Async_Type_name((async)->type)
+    (self).runnable_enqueued.size()
 
 Async_Trampoline_Scheduler::Impl::Impl(
         size_t initial_capacity)
@@ -103,7 +100,7 @@ void Async_Trampoline_Scheduler::Impl::enqueue(AsyncRef async)
     LOG_DEBUG("enqueueing %p into " SCHEDULER_RUNNABLE_QUEUE_FORMAT ": " ASYNC_FORMAT "\n",
             async.decay(),
             SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this),
-            ASYNC_FORMAT_ARGS(async));
+            ASYNC_FORMAT_ARGS(async.get()));
 
     if (runnable_enqueued.find(async.decay()) != runnable_enqueued.end())
     {
@@ -125,10 +122,10 @@ void Async_Trampoline_Scheduler::Impl::block_on(
 {
     LOG_DEBUG(
         "dependency of " ASYNC_FORMAT " on " ASYNC_FORMAT "\n",
-        ASYNC_FORMAT_ARGS(blocked_async.decay()),
-        ASYNC_FORMAT_ARGS(&dependency_async));
+        ASYNC_FORMAT_ARGS(blocked_async.get()),
+        ASYNC_FORMAT_ARGS(dependency_async));
 
-    dependency_async.blocked.emplace_back(std::move(blocked_async));
+    dependency_async.add_blocked(std::move(blocked_async));
 }
 
 AsyncRef Async_Trampoline_Scheduler::Impl::dequeue()
@@ -139,7 +136,7 @@ AsyncRef Async_Trampoline_Scheduler::Impl::dequeue()
 
     LOG_DEBUG(
             "dequeue %p from " SCHEDULER_RUNNABLE_QUEUE_FORMAT "\n",
-            async,
+            async.decay(),
             SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this));
 
     auto entry = runnable_enqueued.find(async.decay());
@@ -164,4 +161,10 @@ void Async_Trampoline_Scheduler::Impl::complete(Async& async)
     for (auto& ref : async.blocked)
         enqueue(std::move(ref));
     async.blocked.clear();
+
+    if (async.type == Async_Type::IS_PTR
+            && async.has_category(Async_Type::CATEGORY_COMPLETE))
+    {
+        complete(async.as_ptr.get());
+    }
 }

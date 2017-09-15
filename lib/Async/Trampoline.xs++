@@ -10,22 +10,42 @@ extern "C" {
 
 #include "Async.h"
 
-static
-void*
-copy_sv_ref(void* sv)
+static void* copy_sv_ref(void* sv);
+static void destroy_sv_ref(void* sv);
+static size_t get_refcount_sv(void* sv);
+static const char* get_stringification_sv(void* sv);
+
+static Destructible_Vtable sv_vtable {
+        destroy_sv_ref,
+        copy_sv_ref,
+        get_refcount_sv,
+        get_stringification_sv,
+};
+
+static void* copy_sv_ref(void* sv)
 {
+    ASYNC_LOG_DEBUG("copy_sv_ref: " DESTRUCTIBLE_FORMAT "\n",
+            DESTRUCTIBLE_FORMAT_ARGS_BORROWED(&sv_vtable, sv));
     SvREFCNT_inc((SV*) sv);
     return sv;
 }
 
-static
-void
-destroy_sv_ref(void* sv)
+static void destroy_sv_ref(void* sv)
 {
+    ASYNC_LOG_DEBUG("destroy_sv_ref: " DESTRUCTIBLE_FORMAT "\n",
+            DESTRUCTIBLE_FORMAT_ARGS_BORROWED(&sv_vtable, sv));
     SvREFCNT_dec((SV*) sv);
 }
 
-static Destructible_Vtable sv_vtable { destroy_sv_ref, copy_sv_ref };
+static size_t get_refcount_sv(void* sv)
+{
+    return SvREFCNT((SV*) sv);
+}
+
+static const char* get_stringification_sv(void* sv)
+{
+    return (SvOK((SV*) sv)) ? SvPV_nolen((SV*) sv) : "<undef>";
+}
 
 static
 AsyncRef
@@ -57,7 +77,11 @@ invoke_cv(CV* callback, DestructibleTuple const& args)
         EXTEND(SP, args.size);
         for (auto arg : args)
         {
-            ASYNC_LOG_DEBUG("  - arg %p\n", arg);
+            ASYNC_LOG_DEBUG("  - arg %p refs=%zu content=%s\n",
+                    arg,
+                    (size_t) SvREFCNT((SV*) arg),
+                    SvPV_nolen((SV*) arg));
+
             PUSHs((SV*) arg);
         }
         PUTBACK;
@@ -128,31 +152,39 @@ void
 Async::run_until_completion()
     INIT:
         CXX_TRY
-        Async* async = THIS;
     PPCODE:
     {
-        Async_run_until_completion(async);
+        Async_run_until_completion(THIS);
 
-        async = &async->ptr_follow();
+        Async& result = THIS->ptr_follow();
 
-        if (async->type < Async_Type::CATEGORY_COMPLETE)
-            croak(  "run_until_completion() did not complete the Async "
-                    "(type code %d)",
-                    async->type);
-
-        if (async->type == Async_Type::IS_CANCEL)
+        if (!result.has_category(Async_Type::CATEGORY_COMPLETE))
+        {
+            croak(  "run_until_completion() did not complete " ASYNC_FORMAT,
+                    ASYNC_FORMAT_ARGS(result));
+        }
+        else if (result.has_type(Async_Type::IS_CANCEL))
         {
             croak("run_until_completion(): Async was cancelled");
         }
-        else if (async->type == Async_Type::IS_ERROR)
+        else if (result.has_type(Async_Type::IS_ERROR))
         {
-            croak_sv((SV*) async->as_error.data);
+            croak_sv((SV*) result.as_error.data);
         }
-        else if (async->type == Async_Type::IS_VALUE)
+        else if (result.has_type(Async_Type::IS_VALUE))
         {
-            DestructibleTuple& values = async->as_value;
+            ASYNC_LOG_DEBUG("returning to Perl: " ASYNC_FORMAT "\n",
+                    ASYNC_FORMAT_ARGS(result));
+
+            DestructibleTuple& values = result.as_value;
             for (auto value : values)
+            {
+                ASYNC_LOG_DEBUG("  - " DESTRUCTIBLE_FORMAT "\n",
+                        DESTRUCTIBLE_FORMAT_ARGS_BORROWED(values.vtable, value));
                 XPUSHs(sv_2mortal(newSVsv((SV*) value)));
+            }
+
+            ASYNC_LOG_DEBUG("result end\n");
         }
         else
         {
@@ -306,9 +338,8 @@ Async::to_string()
         CXX_TRY
     CODE:
     {
-        RETVAL = newSVpvf("<Async 0x%zx %s>",
-                (size_t) THIS,
-                Async_Type_name(THIS->type));
+        RETVAL = newSVpvf(ASYNC_FORMAT,
+                ASYNC_FORMAT_ARGS(*THIS));
     }
     OUTPUT: RETVAL
     CLEANUP:

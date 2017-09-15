@@ -111,6 +111,7 @@ auto Async::set_from(Async&& other) -> void
         case Async_Type::IS_FLOW:
             set_to_Flow(std::move(other.as_flow));
             Async_Flow_clear(other);
+            break;
 
         case Async_Type::CATEGORY_COMPLETE:
             assert(0);
@@ -140,20 +141,36 @@ auto Async::set_from(Async&& other) -> void
 
 auto Async::operator=(Async& other) -> Async&
 {
-    ASYNC_LOG_DEBUG("unify %p with %p (%2d %s)\n",
-            this, &other,
-            static_cast<int>(other.type),
-            Async_Type_name(other.type));
+    ASYNC_LOG_DEBUG("unify " ASYNC_FORMAT " with " ASYNC_FORMAT "\n",
+            ASYNC_FORMAT_ARGS(*this),
+            ASYNC_FORMAT_ARGS(other));
 
-    // save other in case we might own it
+    // as a special case, CANCEL holds no resources and can always be copied
+    if (other.has_type(Async_Type::IS_CANCEL))
+    {
+        clear();
+        set_to_Cancel();
+        return *this;
+    }
+
+    if (other.refcount > 1)
+    {
+        AsyncRef ref{&other};  // keep ref in case we own it
+        clear();
+        set_to_Ptr(std::move(ref));
+        return *this;
+    }
+
+    assert(other.refcount == 1); // caller is the only owner
+
+    // save other in case we might own it, because we clear() ourself.
     AsyncRef unref_me{};
     if (type != Async_Type::IS_UNINITIALIZED)
         unref_me = &other;
 
     clear();
 
-    set_from(other.move_if_only_ref_else_ptr());
-
+    set_from(std::move(other));
     return *this;
 }
 
@@ -167,8 +184,18 @@ void Async::set_to_Ptr(
 
     target.fold();
 
+    ASYNC_LOG_DEBUG("init %p to Ptr: target=" ASYNC_FORMAT "\n",
+            this,
+            ASYNC_FORMAT_ARGS(target.get()));
+
     type = Async_Type::IS_PTR;
     new (&as_ptr) AsyncRef { std::move(target) };
+
+    //  // transfer all dependencies to target
+    //  Async& target_ref = ptr_follow();
+    //  for (auto& depref : blocked)
+    //      target_ref.add_blocked(std::move(depref));
+    //  blocked.clear();
 }
 
 void
@@ -212,15 +239,15 @@ void Async::set_to_Thunk(
         Async_Thunk::Callback   callback,
         AsyncRef                dependency)
 {
-    ASYNC_LOG_DEBUG(
-            "init Async %p to Thunk: callback=??? dependency=%p\n",
-            this, dependency.decay());
-
     ASSERT_INIT(this);
     assert(callback);
 
     if (dependency)
         dependency.fold();
+
+    ASYNC_LOG_DEBUG(
+            "init %p to Thunk: callback=??? dependency=%p\n",
+            this, dependency.decay());
 
     type = Async_Type::IS_THUNK;
     new (&as_thunk) Async_Thunk{
@@ -255,6 +282,15 @@ static void set_to_Binary(
     left.fold();
     right.fold();
 
+    ASYNC_LOG_DEBUG(
+            "init %p to Binary %s: "
+            "left=" ASYNC_FORMAT " "
+            "right=" ASYNC_FORMAT "\n",
+            &self,
+            Async_Type_name(type),
+            ASYNC_FORMAT_ARGS(left.get()),
+            ASYNC_FORMAT_ARGS(right.get()));
+
     self.type = type;
     new (&self.as_binary) Async_Pair {
         std::move(left),
@@ -285,6 +321,20 @@ void Async::set_to_Flow(Async_Flow flow)
     flow.left.fold();
     flow.right.fold();
 
+    ASYNC_LOG_DEBUG(
+            "init %p to Flow: "
+            "left=" ASYNC_FORMAT " "
+            "right=" ASYNC_FORMAT " "
+            "decision=%s "
+            "flow=%s\n",
+            this,
+            ASYNC_FORMAT_ARGS(flow.left.get()),
+            ASYNC_FORMAT_ARGS(flow.right.get()),
+            Async_Type_name(flow.flow_type),
+            (flow.direction == Async_Flow::THEN)        ? "THEN"
+                : (flow.direction == Async_Flow::OR)    ? "OR"
+                : "(unknown)");
+
     type = Async_Type::IS_FLOW;
     new (&as_flow) Async_Flow { std::move(flow) };
 }
@@ -302,6 +352,8 @@ static void Async_Flow_clear(Async& self)
 void Async::set_to_Cancel()
 {
     ASSERT_INIT(this);
+
+    ASYNC_LOG_DEBUG("init %p to Cancel\n", this);
 
     type = Async_Type::IS_CANCEL;
 }
@@ -323,6 +375,10 @@ void Async::set_to_Error(
 {
     ASSERT_INIT(this);
     assert(error.vtable);
+
+    ASYNC_LOG_DEBUG("init %p to Error: " DESTRUCTIBLE_FORMAT "\n",
+            this,
+            DESTRUCTIBLE_FORMAT_ARGS(error));
 
     type = Async_Type::IS_ERROR;
     new (&as_error) Destructible { std::move(error) };
@@ -349,10 +405,13 @@ void Async::set_to_Value(
     if (ASYNC_TRAMPOLINE_DEBUG)
     {
         ASYNC_LOG_DEBUG(
-                "init Async %p to Values: values = %p { size = %zu }\n",
+                "init Async %p to Values: values = %p size = %zu\n",
                 this, values.data.get(), values.size);
         for (auto val : values)
-            ASYNC_LOG_DEBUG("  - values %p\n", val);
+        {
+            ASYNC_LOG_DEBUG("  - values " DESTRUCTIBLE_FORMAT "\n",
+                    DESTRUCTIBLE_FORMAT_ARGS_BORROWED(values.vtable, val));
+        }
     }
 
     type = Async_Type::IS_VALUE;

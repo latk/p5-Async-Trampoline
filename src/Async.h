@@ -14,11 +14,18 @@
 #else
 #include <stdio.h>
 #define ASYNC_TRAMPOLINE_DEBUG 1
-#define ASYNC_LOG_DEBUG(...) do {                                         \
-    fprintf(stderr, "#DEBUG Async: " __VA_ARGS__);           \
+#define ASYNC_LOG_DEBUG(...) do {                                           \
+    fprintf(stderr, "#DEBUG Async: " __VA_ARGS__);                          \
     fflush(stderr);                                                         \
 } while (0)
 #endif /* ifndef ASYNC_TRAMPOLINE_DEBUG */
+
+#define ASYNC_FORMAT "<Async %p %s ref=%zu blocks=%zu>"
+#define ASYNC_FORMAT_ARGS(a)                                                \
+    &(a),                                                                   \
+    Async_Type_name((a).type),                                              \
+    (a).refcount, \
+    (a).blocked.size()
 
 enum class Async_Type
 {
@@ -162,8 +169,6 @@ struct Async
     auto ref() noexcept -> Async& { refcount++; return *this; }
     auto unref() -> void;
 
-    auto move_if_only_ref_else_ptr() -> Async;
-
     auto operator=(Async& other) -> Async&;
     auto clear() -> void;
     auto set_from(Async&& other) -> void;
@@ -176,6 +181,8 @@ struct Async
     void set_to_Cancel      ();
     void set_to_Error       (Destructible error);
     void set_to_Value       (DestructibleTuple values);
+
+    auto add_blocked(AsyncRef blocked) -> void;
 
     auto ptr_follow() -> Async&;
 
@@ -240,18 +247,3 @@ void
 Async_run_until_completion(
         Async*  async);
 
-inline auto Async::move_if_only_ref_else_ptr() -> Async
-{
-    if (refcount == 1)
-        return std::move(*this);
-
-    Async result;
-
-    // as a special case, CANCEL holds no resources and can always be copied
-    if (has_type(Async_Type::IS_CANCEL))
-        result.set_to_Cancel();
-    else
-        result.set_to_Ptr(this);
-
-    return result;
-}
