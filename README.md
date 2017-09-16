@@ -200,6 +200,109 @@ They are like a semicolon `;` in Perl,
 but with different levels of error propagation.
 You may want to sequence Asyncs if any Async causes side effects.
 
+# GENERATORS
+
+A **Generator** describes an Async
+that has a continuation Async as its first value.
+This continuation can be awaited to get the next continuation + value.
+If the generator is Cancelled, no further items are available.
+Errors are propagated.
+
+Generators are useful for yielding a stream of values.
+
+You can use `async_yield()` to conveniently return a value with a continuation.
+The `gen_*()` Async methods can process generator streams.
+They will fail at runtime when the Async is not a valid generator.
+
+The most flexible way to handle generators is to `await()` them.
+However, many use cases are better served by more specialized functions.
+
+**Example:** a count down generator:
+
+    sub count_down_generator {
+        my ($from) = @_;
+        return async_cancel if $i < 0;
+        return async_yield async_value($i) => sub {
+            return count_down_generator($i - 1);
+        };
+    }
+
+    my $countdown_gen = count_down_generator(10);
+
+**Example:** transforming a stream:
+
+    $countdown_gen = $countdown_gen->gen_map(sub {
+        my ($i) = @_;
+        return async_value "ignition" if $i == 3;
+        return async_value "liftoff"  if $i == 0;
+        return async_value $i;
+    });
+
+**Example:** consuming a stream:
+
+    my $finished_async = $countdown_gen->gen_foreach(sub {
+        my ($i) = @_;
+        say $i;
+    });
+
+**Example**: repeating each element:
+
+    sub repeat_gen {
+        my ($gen) = @_;
+        return $gen->await(sub {
+            my ($continuation, $x) = @_;
+            return async_yield async_value($x) => sub {
+                return async_yield async_value($x) => sub {
+                    repeat_gen($continuation);
+                };
+            };
+        });
+    }
+
+## async\_yield
+
+    $generator = async_yield $async => sub { ... }
+
+Yield a value from a generator function.
+The `$async` contains the value or state you want to yield.
+The callback will be executed to yield the next value.
+It receives no arguments.
+It must return a valid generator.
+
+## gen\_map
+
+    $generator = $generator->gen_map(sub { ... })
+
+Transform the values yielded by a generator.
+The callback receives the values of the current item as parameters.
+The callback must return an Async, usually a value.
+It may also return `async_cancel` to terminate the Generator,
+or `async_error`.
+
+You cannot return multiple Asyncs (at most a multi-value Async).
+Returning a Generator Async is not meaningful,
+and it will be treated as an ordinary value.
+
+## gen\_foreach
+
+    $async = $generator->gen_foreach(sub { ... })
+
+Consume a generator.
+The callback will be invoked with each item's values.
+The callback may return an Async Value to receive the next value,
+or may return an Async Error or Async Cancel to abort the loop.
+
+The returned Async is
+an empty Value when the loop completes successfully or was aborted,
+and an Error when there was an error in the loop body or in the generator.
+
+## gen\_collect
+
+    $async = $generator->gen_collect
+
+Collects all items in an array ref.
+This will consume the whole stream, so only works for finite streams.
+
 # OTHER FUNCTIONS
 
 ## run\_until\_completion

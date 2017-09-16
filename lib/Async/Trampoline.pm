@@ -4,13 +4,15 @@ use utf8;
 
 package Async::Trampoline;
 
-## no critic
-our $VERSION = '0.000001';
-$VERSION = eval $VERSION;
-## use critic
+BEGIN {
+    ## no critic
+    our $VERSION = '0.000001';
+    $VERSION = eval $VERSION;
+    ## use critic
+}
 
 use XSLoader;
-XSLoader::load __PACKAGE__, $VERSION;
+BEGIN { XSLoader::load __PACKAGE__, our $VERSION }
 
 use Async::Trampoline::Scheduler;
 
@@ -23,6 +25,7 @@ our %EXPORT_TAGS = (
         async_value
         async_error
         async_cancel
+        async_yield
     /],
 );
 
@@ -35,6 +38,41 @@ use overload
         return $self->to_string;
     };
 
+sub async_yield($&) {  ## no critic (ProhibitSubroutinePrototypes)
+    my ($async, $callback) = @_;
+    return await $async => sub {
+        return async_value async(\&$callback), @_;
+    };
+}
+
+sub gen_map :method {
+    my ($gen, $body) = @_;
+    return await $gen => sub {
+        my $continuation = shift;
+        my $result = $body->(@_);
+        return async_yield $result => sub {
+            return $continuation->gen_map($body);
+        };
+    };
+}
+
+sub gen_foreach :method {
+    my ($gen, $body) = @_;
+    my $finished_async = await $gen => sub {
+        my $continuation = shift;
+        my $ok = $body->(@_);
+        return $ok->value_then($continuation->gen_foreach($body));
+    };
+    return $finished_async->resolved_or(async_value);
+}
+
+sub gen_collect :method {
+    my ($gen) = @_;
+    my @acc;
+    return $gen
+        ->gen_foreach(sub { push @acc, @_; return async_value })
+        ->value_then(async_value \@acc);
+}
 
 1;
 
@@ -243,6 +281,109 @@ Use these functions to sequence actions on success and discarding their value.
 They are like a semicolon C<;> in Perl,
 but with different levels of error propagation.
 You may want to sequence Asyncs if any Async causes side effects.
+
+=head1 GENERATORS
+
+A B<Generator> describes an Async
+that has a continuation Async as its first value.
+This continuation can be awaited to get the next continuation + value.
+If the generator is Cancelled, no further items are available.
+Errors are propagated.
+
+Generators are useful for yielding a stream of values.
+
+You can use C<async_yield()> to conveniently return a value with a continuation.
+The C<gen_*()> Async methods can process generator streams.
+They will fail at runtime when the Async is not a valid generator.
+
+The most flexible way to handle generators is to C<await()> them.
+However, many use cases are better served by more specialized functions.
+
+B<Example:> a count down generator:
+
+    sub count_down_generator {
+        my ($from) = @_;
+        return async_cancel if $i < 0;
+        return async_yield async_value($i) => sub {
+            return count_down_generator($i - 1);
+        };
+    }
+
+    my $countdown_gen = count_down_generator(10);
+
+B<Example:> transforming a stream:
+
+    $countdown_gen = $countdown_gen->gen_map(sub {
+        my ($i) = @_;
+        return async_value "ignition" if $i == 3;
+        return async_value "liftoff"  if $i == 0;
+        return async_value $i;
+    });
+
+B<Example:> consuming a stream:
+
+    my $finished_async = $countdown_gen->gen_foreach(sub {
+        my ($i) = @_;
+        say $i;
+    });
+
+B<Example>: repeating each element:
+
+    sub repeat_gen {
+        my ($gen) = @_;
+        return $gen->await(sub {
+            my ($continuation, $x) = @_;
+            return async_yield async_value($x) => sub {
+                return async_yield async_value($x) => sub {
+                    repeat_gen($continuation);
+                };
+            };
+        });
+    }
+
+=head2 async_yield
+
+    $generator = async_yield $async => sub { ... }
+
+Yield a value from a generator function.
+The C<$async> contains the value or state you want to yield.
+The callback will be executed to yield the next value.
+It receives no arguments.
+It must return a valid generator.
+
+=head2 gen_map
+
+    $generator = $generator->gen_map(sub { ... })
+
+Transform the values yielded by a generator.
+The callback receives the values of the current item as parameters.
+The callback must return an Async, usually a value.
+It may also return C<async_cancel> to terminate the Generator,
+or C<async_error>.
+
+You cannot return multiple Asyncs (at most a multi-value Async).
+Returning a Generator Async is not meaningful,
+and it will be treated as an ordinary value.
+
+=head2 gen_foreach
+
+    $async = $generator->gen_foreach(sub { ... })
+
+Consume a generator.
+The callback will be invoked with each item's values.
+The callback may return an Async Value to receive the next value,
+or may return an Async Error or Async Cancel to abort the loop.
+
+The returned Async is
+an empty Value when the loop completes successfully or was aborted,
+and an Error when there was an error in the loop body or in the generator.
+
+=head2 gen_collect
+
+    $async = $generator->gen_collect
+
+Collects all items in an array ref.
+This will consume the whole stream, so only works for finite streams.
 
 =head1 OTHER FUNCTIONS
 
