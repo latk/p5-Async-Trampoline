@@ -38,13 +38,6 @@ use overload
         return $self->to_string;
     };
 
-sub async_yield($&) {  ## no critic (ProhibitSubroutinePrototypes)
-    my ($async, $callback) = @_;
-    return await $async => sub {
-        return async_value async(\&$callback), @_;
-    };
-}
-
 sub gen_map :method {
     my ($gen, $body) = @_;
     return await $gen => sub {

@@ -139,6 +139,26 @@ public:
     }
 };
 
+static AsyncRef make_async_yield(AsyncRef&& continuation, AsyncRef&& value)
+{
+    // wrap continuation as SV
+    DestructibleTuple continuation_tuple { &sv_vtable, 1 };
+    SV* continuation_sv = nullptr;
+    continuation_tuple.set(0, { continuation_sv = newSV(0), &sv_vtable });
+    sv_setref_pv(
+            continuation_sv,
+            "Async::Trampoline",
+            continuation.ptr_with_ownership());
+
+    AsyncRef continuation_tuple_async = Async::alloc();
+    continuation_tuple_async->set_to_Value(std::move(continuation_tuple));
+
+    AsyncRef yield = Async::alloc();
+    yield->set_to_Concat(continuation_tuple_async, value);
+
+    return yield;
+}
+
 #define ASYNC_TYPE_GET(name) (static_cast<I32>(Async_Type::name))
 #define ASYNC_TYPE_CATEGORY_COMPLETE    ASYNC_TYPE_GET(CATEGORY_COMPLETE)
 #define ASYNC_TYPE_CATEGORY_RESOLVED    ASYNC_TYPE_GET(CATEGORY_RESOLVED)
@@ -285,6 +305,25 @@ async_cancel()
         AsyncRef self = Async::alloc();
         self->set_to_Cancel();
         RETVAL = self.ptr_with_ownership();
+    }
+    OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
+
+Async*
+async_yield(async, callback)
+        Async*  async
+        CV*     callback
+    PROTOTYPE: $&
+    INIT:
+        CXX_TRY
+    CODE:
+    {
+        AsyncRef continuation = Async::alloc();
+        continuation->set_to_Thunk(InvokeCV{callback}, nullptr);
+
+        AsyncRef yield = make_async_yield(std::move(continuation), async);
+        RETVAL = yield.ptr_with_ownership();
     }
     OUTPUT: RETVAL
     CLEANUP:

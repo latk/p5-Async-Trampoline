@@ -156,8 +156,8 @@ struct DestructibleTuple {
     auto move_from(size_t i) -> Destructible
     {
         assert(i < size);
-        Destructible result { nullptr, vtable };
-        noexcept_swap(result.data, data[i]);
+        Destructible result { data[i], vtable };
+        data[i] = nullptr;
         return result;
     }
 
