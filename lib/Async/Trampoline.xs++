@@ -139,6 +139,25 @@ public:
     }
 };
 
+static AsyncRef async_from_sv(SV* sv)
+{
+    if (sv_isa(sv, "Async::Trampoline"))
+        return (Async*) SvIV(SvRV(sv));
+    return {};
+}
+
+static DestructibleTuple destructible_tuple_tail(
+        size_t head,
+        DestructibleTuple const& data)
+{
+    assert(head <= data.size);
+
+    DestructibleTuple result { data.vtable, data.size - head };
+    for (size_t i = head; i < data.size; i++)
+        result.set(i - head, data.copy_from(i));
+    return result;
+}
+
 static AsyncRef make_async_yield(AsyncRef&& continuation, AsyncRef&& value)
 {
     // wrap continuation as SV
@@ -159,7 +178,55 @@ static AsyncRef make_async_yield(AsyncRef&& continuation, AsyncRef&& value)
     return yield;
 }
 
-static AsyncRef make_gen_map(AsyncRef&& gen, InvokeCV body)
+static AsyncRef make_gen_foreach(AsyncRef&& gen, InvokeCV&& body)
+{
+    auto gen_foreach_thunk =
+    [body = std::move(body)]
+    (DestructibleTuple const& data)
+    {
+        AsyncRef continuation {};
+        if (data.size > 0)
+            continuation = async_from_sv((SV*) data.at(0));
+
+        if (!continuation)
+            throw std::runtime_error(
+                    "generator Async must have Async as first value");
+
+        DestructibleTuple body_args = destructible_tuple_tail(1, data);
+
+        AsyncRef ok_then = Async::alloc();
+
+        AsyncRef next_foreach = make_gen_foreach(
+                std::move(continuation), InvokeCV { body });
+
+        AsyncRef ok = body(body_args);
+
+        ok_then->set_to_Flow({
+                ok, next_foreach,
+                Async_Type::IS_VALUE,
+                Async_Flow::THEN,
+        });
+
+        return ok_then;
+    };
+
+    AsyncRef await = Async::alloc();
+    await->set_to_Thunk(gen_foreach_thunk, std::move(gen));
+
+    AsyncRef value = Async::alloc();
+    value->set_to_Value(DestructibleTuple { &sv_vtable, 0 });
+
+    AsyncRef finished = Async::alloc();
+    finished->set_to_Flow({
+            std::move(await), std::move(value),
+            Async_Type::CATEGORY_RESOLVED,
+            Async_Flow::OR,
+    });
+
+    return finished;
+}
+
+static AsyncRef make_gen_map(AsyncRef&& gen, InvokeCV&& body)
 {
     auto gen_map_thunk =
     [body = std::move(body)]
@@ -167,19 +234,16 @@ static AsyncRef make_gen_map(AsyncRef&& gen, InvokeCV body)
     {
         AsyncRef continuation {};
         if (data.size > 0)
-            if (SV* continuation_sv = (SV*) data.at(0))
-                if (sv_isa(continuation_sv, "Async::Trampoline"))
-                    continuation = (Async*) SvIV(SvRV(continuation_sv));
+            continuation = async_from_sv((SV*) data.at(0));
 
         if (!continuation)
             throw std::runtime_error(
                     "generator Async must have Async as first value");
 
-        AsyncRef next_map = make_gen_map(std::move(continuation), body);
+        AsyncRef next_map = make_gen_map(
+                std::move(continuation), InvokeCV { body });
 
-        DestructibleTuple body_args { data.vtable, data.size - 1 };
-        for (size_t i = 1; i < data.size; i++)
-            body_args.set(i - 1, data.copy_from(i));
+        DestructibleTuple body_args = destructible_tuple_tail(1, data);
 
         AsyncRef result = body(body_args);
 
@@ -455,6 +519,19 @@ Async::gen_map(body)
     CODE:
     {
         RETVAL = make_gen_map(THIS, body).ptr_with_ownership();
+    }
+    OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
+
+Async*
+Async::gen_foreach(body)
+        CV* body
+    INIT:
+        CXX_TRY
+    CODE:
+    {
+        RETVAL = make_gen_foreach(THIS, body).ptr_with_ownership();
     }
     OUTPUT: RETVAL
     CLEANUP:
