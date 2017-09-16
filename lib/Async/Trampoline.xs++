@@ -177,14 +177,18 @@ Async::run_until_completion()
                     ASYNC_FORMAT_ARGS(result));
 
             DestructibleTuple& values = result.as_value;
+            XSprePUSH;  // to fix weird XS+PPCODE argument handling
+            EXTEND(SP, values.size);
             for (auto value : values)
             {
                 ASYNC_LOG_DEBUG("  - " DESTRUCTIBLE_FORMAT "\n",
                         DESTRUCTIBLE_FORMAT_ARGS_BORROWED(values.vtable, value));
-                XPUSHs(sv_2mortal(newSVsv((SV*) value)));
+                PUSHs(sv_mortalcopy((SV*) value));
             }
 
             ASYNC_LOG_DEBUG("result end\n");
+
+            XSRETURN(values.size);
         }
         else
         {
