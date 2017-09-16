@@ -142,16 +142,14 @@ struct DestructibleTuple {
     auto end()          -> void**       { return &data[size]; }
     auto end() const    -> void* const* { return &data[size]; }
 
-    auto at(size_t i) -> void*
+    auto at(size_t i) const -> void*
     {
         assert(i < size);
         return data[i];
     }
 
-    auto copy_from(size_t i) -> Destructible
-    {
-        return { vtable->copy(at(i)), vtable };
-    }
+    auto copy_from(size_t i) const -> Destructible
+    { return { vtable->copy(at(i)), vtable }; }
 
     auto move_from(size_t i) -> Destructible
     {

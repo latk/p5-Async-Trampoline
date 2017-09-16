@@ -186,14 +186,16 @@ Async_Concat_eval(
     size_t output_i = 0;
     for (Async* source : { left.decay(), right.decay() })
     {
-        Destructible (DestructibleTuple::* copy_or_move)(size_t) =
+        auto copy_or_move =
             (source->refcount == 1)
-            ? &DestructibleTuple::move_from
-            : &DestructibleTuple::copy_from;
+            ? [](DestructibleTuple& input, size_t i)
+                { return input.move_from(i); }
+            : [](DestructibleTuple& input, size_t i)
+                { return input.copy_from(i); };
         DestructibleTuple& input = source->as_value;
         for (size_t input_i = 0; input_i < input.size; input_i++, output_i++)
         {
-            Destructible temp = (input.*copy_or_move)(input_i);
+            Destructible temp = copy_or_move(input, input_i);
             tuple.set(output_i, std::move(temp));
         }
     }

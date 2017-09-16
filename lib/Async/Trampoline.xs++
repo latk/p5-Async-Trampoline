@@ -125,14 +125,14 @@ invoke_cv(CV* callback, DestructibleTuple const& args)
 
 class InvokeCV
 {
-    Destructible context;
+    Destructible const context;
 public:
     explicit InvokeCV(Destructible context) : context{std::move(context)} {}
 
     InvokeCV(CV* callback) : InvokeCV{{callback, &sv_vtable}}
     { SvREFCNT_inc(callback); }
 
-    auto operator() (DestructibleTuple const& args) -> AsyncRef
+    auto operator() (DestructibleTuple const& args) const -> AsyncRef
     {
         CV* callback = (CV*) context.data;
         return invoke_cv(callback, args);
@@ -157,6 +157,38 @@ static AsyncRef make_async_yield(AsyncRef&& continuation, AsyncRef&& value)
     yield->set_to_Concat(continuation_tuple_async, value);
 
     return yield;
+}
+
+static AsyncRef make_gen_map(AsyncRef&& gen, InvokeCV body)
+{
+    auto gen_map_thunk =
+    [body = std::move(body)]
+    (DestructibleTuple const& data)
+    {
+        AsyncRef continuation {};
+        if (data.size > 0)
+            if (SV* continuation_sv = (SV*) data.at(0))
+                if (sv_isa(continuation_sv, "Async::Trampoline"))
+                    continuation = (Async*) SvIV(SvRV(continuation_sv));
+
+        if (!continuation)
+            throw std::runtime_error(
+                    "generator Async must have Async as first value");
+
+        AsyncRef next_map = make_gen_map(std::move(continuation), body);
+
+        DestructibleTuple body_args { data.vtable, data.size - 1 };
+        for (size_t i = 1; i < data.size; i++)
+            body_args.set(i - 1, data.copy_from(i));
+
+        AsyncRef result = body(body_args);
+
+        return make_async_yield(std::move(next_map), std::move(result));
+    };
+
+    AsyncRef await = Async::alloc();
+    await->set_to_Thunk(gen_map_thunk, std::move(gen));
+    return await;
 }
 
 #define ASYNC_TYPE_GET(name) (static_cast<I32>(Async_Type::name))
@@ -411,6 +443,19 @@ Async::is_cancelled()
         CXX_TRY
     CODE:
         RETVAL = THIS->has_type(static_cast<Async_Type>(ix));
+    OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
+
+Async*
+Async::gen_map(body)
+        CV* body
+    INIT:
+        CXX_TRY
+    CODE:
+    {
+        RETVAL = make_gen_map(THIS, body).ptr_with_ownership();
+    }
     OUTPUT: RETVAL
     CLEANUP:
         CXX_CATCH

@@ -38,17 +38,6 @@ use overload
         return $self->to_string;
     };
 
-sub gen_map :method {
-    my ($gen, $body) = @_;
-    return await $gen => sub {
-        my $continuation = shift;
-        my $result = $body->(@_);
-        return async_yield $result => sub {
-            return $continuation->gen_map($body);
-        };
-    };
-}
-
 sub gen_foreach :method {
     my ($gen, $body) = @_;
     my $finished_async = await $gen => sub {
