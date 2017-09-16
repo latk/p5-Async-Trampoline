@@ -28,6 +28,9 @@ static void Async_Value_clear      (Async* self);
 
 auto Async::clear() -> void
 {
+    ASYNC_LOG_DEBUG("clear() " ASYNC_FORMAT "\n",
+            ASYNC_FORMAT_ARGS(*this));
+
     switch (type) {
         case Async_Type::IS_UNINITIALIZED:
             break;

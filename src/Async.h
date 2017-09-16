@@ -164,7 +164,11 @@ struct Async
         blocked{}
     { }
     Async(Async&& other) : Async{} { set_from(std::move(other)); }
-    ~Async() { assert(blocked.size() == 0); clear(); }
+    ~Async() {
+        assert(blocked.size() == 0);
+        clear();
+        assert(type == Async_Type::IS_UNINITIALIZED);
+    }
 
     auto ref() noexcept -> Async& { refcount++; return *this; }
     auto unref() -> void;
