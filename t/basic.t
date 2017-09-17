@@ -67,6 +67,20 @@ describe q(await()) => sub {
         };
         is $async->run_until_completion, "a b";
     };
+
+    it q(can take arrayref as first arg) => sub {
+        my $async = await [(async_value 1), async { async_value 2 }] => sub {
+            return async_value "@_";
+        };
+        is $async->run_until_completion, "1 2";
+    };
+
+    it q(can take empty arrayref as first arg) => sub {
+        my $async = await [] => sub {
+            return async_value "<@_>";
+        };
+        is $async->run_until_completion, "<>";
+    };
 };
 
 describe q(async()) => sub {

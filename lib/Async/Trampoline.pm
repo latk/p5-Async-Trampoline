@@ -186,19 +186,24 @@ Use this to abort an Async without using an error.
 
 =head2 await
 
-    $async = await $dependency => sub {
-        my (@result) = @;
-        ...
-    };
-
     $async = $dependency->await(sub {
         my (@result) = @_;
         ...
     });
 
-Wait until the C<$dependency> Async has a value,
+    $async = await $dependency => sub {
+        my (@result) = @;
+        ...
+    };
+
+    $async = await [@dependencies] => sub {
+        my (@results) = @_;
+        ...
+    };
+
+Wait until the C<$dependency> or C<@dependencies> Asyncs have a value,
 then call the callback with the values as arguments.
-If the dependency was cancelled or has an error,
+If a dependency was cancelled or has an error,
 the async is updated to that state.
 The callback must return an Async.
 Use this to chain Asyncs.

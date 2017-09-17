@@ -255,6 +255,30 @@ static AsyncRef make_gen_map(AsyncRef&& gen, InvokeCV&& body)
     return await;
 }
 
+static AsyncRef concat_fold_right(ssize_t i, AV* array)
+{
+    if (i > av_len(array))
+        return nullptr;
+
+    AsyncRef left;
+    if (SV** left_sv = av_fetch(array, i, 0))
+        left = async_from_sv(*left_sv);
+
+    if (!left)
+        throw std::runtime_error(
+                "all dependencies must be Asyncs");
+
+    AsyncRef right = concat_fold_right(i + 1, array);
+
+    if (!right)
+        return left;
+
+    AsyncRef concat = Async::alloc();
+    concat->set_to_Concat(std::move(left), std::move(right));
+    return concat;
+};
+
+
 #define ASYNC_TYPE_GET(name) (static_cast<I32>(Async_Type::name))
 #define ASYNC_TYPE_CATEGORY_COMPLETE    ASYNC_TYPE_GET(CATEGORY_COMPLETE)
 #define ASYNC_TYPE_CATEGORY_RESOLVED    ASYNC_TYPE_GET(CATEGORY_RESOLVED)
@@ -339,16 +363,42 @@ async(body)
         CXX_CATCH
 
 Async*
-await(dep, body)
-        Async*  dep;
-        CV*     body;
+await(deps, body)
+        SV* deps
+        CV* body
     PROTOTYPE: $&
     INIT:
         CXX_TRY
     CODE:
     {
+        auto get_arrayref = [](SV* sv) -> AV*
+        {
+            if (!SvROK(sv))
+                return nullptr;
+
+            sv = SvRV(sv);
+
+            if (SvTYPE(sv) != SVt_PVAV)
+                return (AV*) sv;
+        };
+
+        AsyncRef dep {};
+        if (dep = async_from_sv(deps))
+        {
+            // ok
+        }
+        else if (AV* deps_av = get_arrayref(deps))
+        {
+            dep = concat_fold_right(0, deps_av);
+        }
+        else
+        {
+            throw std::runtime_error(
+                    "dependency must be Async or arrayref of Asyncs");
+        }
+
         AsyncRef self = Async::alloc();
-        self->set_to_Thunk(InvokeCV{body}, dep);
+        self->set_to_Thunk(InvokeCV{body}, std::move(dep));
         RETVAL = self.ptr_with_ownership();
     }
     OUTPUT: RETVAL
