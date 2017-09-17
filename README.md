@@ -200,6 +200,17 @@ They are like a semicolon `;` in Perl,
 but with different levels of error propagation.
 You may want to sequence Asyncs if any Async causes side effects.
 
+## concat
+
+    $async = $first_async->concat($second_async)
+
+If both asyncs evaluate to Values, concatenate the values.
+
+**Example**:
+
+    my $async = (async_value 1, 2, 3)->concat(async_value 4, 5);
+    #=> async_value 1, 2, 3, 4, 5
+
 # GENERATORS
 
 A **Generator** describes an Async

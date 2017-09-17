@@ -470,6 +470,21 @@ Async::resolved_then(then)
     CLEANUP:
         CXX_CATCH
 
+Async*
+Async::concat(other)
+        Async* other
+    INIT:
+        CXX_TRY
+    CODE:
+    {
+        AsyncRef async = Async::alloc();
+        async->set_to_Concat(THIS, other);
+        RETVAL = async.ptr_with_ownership();
+    }
+    OUTPUT: RETVAL
+    CLEANUP:
+        CXX_CATCH
+
 SV*
 Async::to_string()
     PROTOTYPE: DISABLE

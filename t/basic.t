@@ -268,4 +268,13 @@ describe q(errors) => sub {
     };
 };
 
+describe q(concat()) => sub {
+    it q(combines two values) => sub {
+        my $x = async_value qw( 1 2 3 );
+        my $y = async_value qw( a b );
+        my @result = $x->concat($y)->run_until_completion;
+        is "@result", "1 2 3 a b";
+    };
+};
+
 done_testing;
