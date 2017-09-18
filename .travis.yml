@@ -1,0 +1,28 @@
+language: perl
+perl:
+  - "5.26"
+  - "5.24"
+  - "5.22"
+  - "5.16"
+  - "5.14"
+env:
+  global:
+    - builddir=./build-CI
+    # try to parse the "perlbrew list" output to get latest perl version
+    - stableperl="$(perlbrew list | grep -o '(.*)' | sort | tail -1 | tr -d '()')"
+    - RELEASE_TESTING=1
+    - AUTOMATED_TESTING=1
+    - EXTENDED_TESTING=1
+    - AUTHOR_TESTING=1
+before_install:
+  - perlbrew list
+  - echo $stableperl
+  - "perlbrew exec perl -v"
+  - "perlbrew exec --with $stableperl cpanm --quiet --notest Dist::Zilla"
+  - "perlbrew exec --with $stableperl 'dzil authordeps | cpanm --quiet --notest'"
+  - "perlbrew exec --with $stableperl dzil build --in $builddir"
+install:
+  - '(cd $builddir && cpanm --quiet --notest --installdeps --with-develop .)'
+script:
+  - '(cd $builddir && prove -lr t)'
+sudo: false
