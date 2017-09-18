@@ -58,7 +58,63 @@ Async::Trampoline - Trampolining functions with async/await syntax
 
 =head1 SYNOPSIS
 
-    TODO
+    use Async::Trampoline qw(
+        await
+        async async_value async_error async_cancel
+        async_yield
+    );
+
+    # running asyncs
+    @result = $async->run_until_completion;
+
+    # creating asyncs
+    $async = async { ...; return $new_async };
+    $async = async_value 1, 2, 3;
+    $async = async_error "oops";
+    $async = async_cancel;
+
+    # combining asyncs
+    $async = $other_async->await(sub {
+        my (@values) = @_;
+        ...
+        return $new_async;
+    });
+    $async = await [$x_async, $y_async] => sub {
+        my (@x_and_y_values) = @_;
+        ...
+        reutrn $new_async;
+    };
+    $async = $x->complete_then($y);
+    $async = $x->resolved_or($y);
+    $async = $x->resolved_then($y);
+    $async = $x->value_or($y);
+    $async = $x->value_then($y);
+    $async = $x->concat($y);
+
+    # generators
+    $gen = async_yield async_value(1, 2, 3) => sub {
+        ...
+        return $next_generator;
+    };
+    $gen = $gen->gen_map(sub {
+        my (@values) = @_;
+        ...;
+        return $new_async;
+    });
+    $async = $gen->foreach(sub {
+        my (@values) = @_;
+        return async_cancel if not @values;  # like "last" in Perl
+        ...
+        return async_value;  # like "next" in Perl
+    });
+    $async = $gen->collect;
+
+    # misc
+    $str = $async->to_string;
+    $bool = $async->is_complete;
+    $bool = $async->is_cancelled;
+    $bool = $async->is_error;
+    $bool = $async->is_value;
 
 =head1 DESCRIPTION
 
@@ -70,9 +126,16 @@ The trampoline keeps invoking the returned function
 until a result is returned.
 Importantly, such trampolines eliminate tail calls.
 
-This programming style is powerful but inconvenient because you tend to get callback hell.
+This programming style is powerful but inconvenient
+because you tend to get callback hell.
 This module implements simple Futures with an async/await syntax.
 Instead of nesting the callbacks, we can now chain callbacks more easily.
+
+This module was initially created
+in order to write recursive algorithms around compiler construction:
+recursive-descent parsers and recursive tree traversal.
+However, it is certainly applicable to other problems as well.
+The module is written in C++ to keep runtime overhead minimal.
 
 =head2 Example: loop
 
@@ -107,6 +170,18 @@ Async/recursive:
 
     my $items = loop_async([], 5)->run_until_completion;
 
+Async/generators:
+
+    sub loop_gen {
+        my ($i) = @_;
+        return async_cancel if not $i;
+        return async_yield async_value($i) => sub {
+            return loop_gen($i - 1);
+        };
+    }
+
+    my $items = loop_gen(5)->gen_collect->run_until_completion;
+
 =head1 ASYNC STATES
 
 Each Async exists in one of these states:
@@ -129,11 +204,14 @@ the Async will be updated to the state of the return value of that callback.
 B<Completed> states are terminal.
 The Asyncs are not subject to further processing.
 
-A B<Cancelled Async> represents an aborted computation.
+A B<Cancelled> Async represents an aborted computation.
 They have no value.
 Cancellation is not an error,
 but C<run_until_completion()> will die when the Async was cancelled.
 You can cancel a computation via the C<async_cancel> constructor.
+Cancellation is useful to abort loops,
+or to fall back to an alternative with
+C<< $may_cancel->resolved_or($alternative) >>.
 
 B<Resolved> Asyncs are Completed Asyncs that finished their computation
 and have a value, either an Error or a Value upon success.
@@ -414,6 +492,44 @@ Low-level debugging stringification that displays Async identity and type.
     $bool = $async->is_value;
 
 Inspect the state of an Async (see L<"Async States"|/"ASYNC STATES">).
+
+=head1 WHAT THIS MODULE IS NOT
+
+This module is not very well tested and battle-proven.
+There are certainly still some bugs lurking around.
+
+This module does not provide first-class corountines or async/await keywords.
+It is just a library.
+Check out the L<Future::AsyncAwait|Future::AsyncAwait> module instead.
+
+This module does not provide first-class Future objects.
+While Asyncs are Future-like, you cannot resolve an Async explicitly.
+Check out the L<Future|Future> module instead.
+
+This module does not implement an event loop.
+The C<run_until_completion()> function does run a dispatch loop,
+but there is no concept of events, I/O, or timers.
+Check out the L<IO::Async|IO::Async> module instead.
+
+This module is not thread-aware.
+Handling the same Async on multiple threads is undefined behaviour.
+
+This module does not detect infinite loops.
+It is your responsibility to ensure
+that Async dependencies don't form cycles.
+
+This module does not guarantee any particular evaluation order.
+If you need a specific sequence, you must encode it explicitly
+(see L<Combining Asyncs|/"COMBINING ASYNCS">).
+Note that the combinators do not declare
+a partial order between one or more Asyncs,
+but specify in which order
+the dependencies of the combinator Async are evaluated.
+E.g. in C<< $x->complete_then($y) >>, C<$y> may be evaluated first
+if some other Async depends on C<$y> as well.
+
+This module is not pure-Perl.
+You will need a C++14 compiler to install it.
 
 =head1 AUTHOR
 
