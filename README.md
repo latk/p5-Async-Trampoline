@@ -477,6 +477,12 @@ if some other Async depends on `$y` as well.
 This module is not pure-Perl.
 You will need a C++14 compiler to install it.
 
+# SUPPORT
+
+Homepage: [https://github.com/latk/p5-Async-Trampoline](https://github.com/latk/p5-Async-Trampoline)
+
+Bug Tracker: [https://github.com/latk/p5-Async-Trampoline/issues](https://github.com/latk/p5-Async-Trampoline/issues)
+
 # AUTHOR
 
 amon - Lukas Atkinson (cpan: AMON) <amon@cpan.org>

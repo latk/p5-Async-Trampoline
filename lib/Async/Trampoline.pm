@@ -531,6 +531,12 @@ if some other Async depends on C<$y> as well.
 This module is not pure-Perl.
 You will need a C++14 compiler to install it.
 
+=head1 SUPPORT
+
+Homepage: L<https://github.com/latk/p5-Async-Trampoline>
+
+Bug Tracker: L<https://github.com/latk/p5-Async-Trampoline/issues>
+
 =head1 AUTHOR
 
 amon - Lukas Atkinson (cpan: AMON) <amon@cpan.org>
