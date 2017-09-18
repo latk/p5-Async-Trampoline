@@ -1,10 +1,17 @@
 language: perl
+os: linux
 perl:
   - "5.26"
   - "5.24"
   - "5.22"
   - "5.16"
   - "5.14"
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - g++-7
 env:
   global:
     - builddir=./build-CI
@@ -16,6 +23,8 @@ env:
     - AUTHOR_TESTING=1
     # Perl 5.26 won't load modules from inc/ otherwise
     - PERL_USE_UNSAFE_INC=1
+  matrix:
+    - CC=gcc-7 CXX=g++-7
 before_install:
   - perlbrew list
   - echo $stableperl
@@ -31,6 +40,7 @@ script:
 sudo: false
 matrix:
   include:
+    # other compilers
     - os: linux
       addons:
         apt:
@@ -39,5 +49,23 @@ matrix:
           packages:
             - g++-5
       env:
-         - CC=gcc-5 CXX=g++-5
+        - CC=gcc-5 CXX=g++-5
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-6
+      env:
+        - CC=gcc-6 CXX=g++-6
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-5.0
+          packages:
+            - clang-5.0
+      env:
+        - CC=clang-5.0 CXX=clang++-5.0
 # vim: sw=2
