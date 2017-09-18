@@ -15,7 +15,7 @@ namespace noexcept_swap_details {
     template<class T, class Member>
     int member_swap_helper(T& lhs, T& rhs, Member T::* member) noexcept
     {
-        assert(("must be non-null", member));
+        assert(/*must be non-null*/ member);
         noexcept_swap(lhs.*member, rhs.*member);
         return {};
     }

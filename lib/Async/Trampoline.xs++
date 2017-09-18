@@ -379,11 +379,13 @@ await(deps, body)
             sv = SvRV(sv);
 
             if (SvTYPE(sv) != SVt_PVAV)
-                return (AV*) sv;
+                return nullptr;
+
+            return (AV*) sv;
         };
 
-        AsyncRef dep {};
-        if (dep = async_from_sv(deps))
+        AsyncRef dep = async_from_sv(deps);
+        if (dep)
         {
             // ok
         }
