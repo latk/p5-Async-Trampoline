@@ -29,3 +29,15 @@ script:
   - '(cd $builddir && perl Build.PL && ./Build)'
   - '(cd $builddir && prove -br t)'
 sudo: false
+matrix:
+  include:
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-5
+      env:
+         - CC=gcc-5 CXX=g++-5
+# vim: sw=2
