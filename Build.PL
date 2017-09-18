@@ -27,12 +27,18 @@ my %module_build_args = (
   "extra_linker_flags" => "-lstdc++",
   "license" => "perl",
   "module_name" => "Async::Trampoline",
-  "recursive_test_files" => 1
+  "recursive_test_files" => 1,
+  "test_requires" => {
+    "Test::More" => 0,
+    "Test::Output" => 0
+  }
 );
 
 
 my %fallback_build_requires = (
-  "Module::Build" => "0.28"
+  "Module::Build" => "0.28",
+  "Test::More" => 0,
+  "Test::Output" => 0
 );
 
 

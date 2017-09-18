@@ -65,4 +65,31 @@ subtest q(repetition) => sub {
     is_deeply $async->run_until_completion, [3, 3, 2, 2, 1, 1, 0, 0];
 };
 
+describe q(gen_foreach()) => sub {
+    it q(does nothing on empty input) => sub {
+        my $gen = async_cancel;
+        my $async = $gen->gen_foreach(sub { die "never executed" });
+
+        my @result = $async->run_until_completion;
+
+        is_deeply \@result, [];
+    };
+
+    it q(is executed once if generator contains one value) => sub {
+        my $gen = async_yield async_value("foo") => sub {
+            return async_cancel;
+        };
+        my @seen;
+        my $async = $gen->gen_foreach(sub {
+            push @seen, [@_];
+            return async_value;
+        });
+
+        my @result = $async->run_until_completion;
+
+        is_deeply \@seen, [["foo"]];
+        is_deeply \@result, [];
+    };
+};
+
 done_testing;
