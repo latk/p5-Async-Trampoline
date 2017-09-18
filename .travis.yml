@@ -26,5 +26,6 @@ before_install:
 install:
   - '(cd $builddir && cpanm --quiet --notest --installdeps --with-develop .)'
 script:
-  - '(cd $builddir && prove -lr t)'
+  - '(cd $builddir && perl Build.PL && ./Build)'
+  - '(cd $builddir && prove -br t)'
 sudo: false
