@@ -2,17 +2,16 @@
 #include "Destructible.h"
 #include "NoexceptSwap.h"
 
-#include <stddef.h>
-#include <assert.h>
-#include <stdbool.h>
+#include <cassert>
 #include <functional>
 #include <vector>
+#include <utility>
 
 #ifndef ASYNC_TRAMPOLINE_DEBUG
 #define ASYNC_TRAMPOLINE_DEBUG 0
 #define ASYNC_LOG_DEBUG(...) do {} while (0)
 #else
-#include <stdio.h>
+#include <cstdio>
 #define ASYNC_TRAMPOLINE_DEBUG 1
 #define ASYNC_LOG_DEBUG(...) do {                                           \
     fprintf(stderr, "#DEBUG Async: " __VA_ARGS__);                          \
