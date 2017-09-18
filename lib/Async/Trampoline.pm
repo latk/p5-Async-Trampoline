@@ -82,7 +82,7 @@ Async::Trampoline - Trampolining functions with async/await syntax
     $async = await [$x_async, $y_async] => sub {
         my (@x_and_y_values) = @_;
         ...
-        reutrn $new_async;
+        return $new_async;
     };
     $async = $x->complete_then($y);
     $async = $x->resolved_or($y);
@@ -391,6 +391,7 @@ B<Example:> consuming a stream:
     my $finished_async = $countdown_gen->gen_foreach(sub {
         my ($i) = @_;
         say $i;
+        return async_value;  # request next item
     });
 
 B<Example>: repeating each element:
