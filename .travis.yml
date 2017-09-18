@@ -19,7 +19,7 @@ before_install:
   - echo $stableperl
   - "perlbrew exec perl -v"
   - "perlbrew exec --with $stableperl cpanm --quiet --notest Dist::Zilla"
-  - "perlbrew exec --with $stableperl 'dzil authordeps | cpanm --quiet --notest'"
+  - "perlbrew exec --with $stableperl 'dzil authordeps | grep -v '^inc::' | cpanm --quiet --notest'"
   - "perlbrew exec --with $stableperl dzil build --in $builddir"
 install:
   - '(cd $builddir && cpanm --quiet --notest --installdeps --with-develop .)'
