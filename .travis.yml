@@ -14,12 +14,14 @@ env:
     - AUTOMATED_TESTING=1
     - EXTENDED_TESTING=1
     - AUTHOR_TESTING=1
+    # Perl 5.26 won't load modules from inc/ otherwise
+    - PERL_USE_UNSAFE_INC=1
 before_install:
   - perlbrew list
   - echo $stableperl
   - "perlbrew exec perl -v"
   - "perlbrew exec --with $stableperl cpanm --quiet --notest Dist::Zilla"
-  - "perlbrew exec --with $stableperl 'dzil authordeps | grep -v '^inc::' | cpanm --quiet --notest'"
+  - "perlbrew exec --with $stableperl 'dzil authordeps | grep -v ^inc:: | cpanm --quiet --notest'"
   - "perlbrew exec --with $stableperl dzil build --in $builddir"
 install:
   - '(cd $builddir && cpanm --quiet --notest --installdeps --with-develop .)'
