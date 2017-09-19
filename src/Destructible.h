@@ -8,8 +8,8 @@
 #define DESTRUCTIBLE_FORMAT "<%p refs=%zu \"%s\">"
 #define DESTRUCTIBLE_FORMAT_ARGS_BORROWED(vtable, data)                     \
     (data),                                                                 \
-    (vtable)->get_refcount((data)),                                         \
-    (vtable)->get_stringification((data))
+    ((data) ? (vtable)->get_refcount((data)) : 0),                          \
+    ((data) ? (vtable)->get_stringification((data)) : "<null>")
 #define DESTRUCTIBLE_FORMAT_ARGS(d)                                         \
     DESTRUCTIBLE_FORMAT_ARGS_BORROWED((d).vtable, (d).data)
 

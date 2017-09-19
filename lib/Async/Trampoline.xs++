@@ -27,7 +27,8 @@ static void* copy_sv_ref(void* sv)
 {
     ASYNC_LOG_DEBUG("copy_sv_ref: " DESTRUCTIBLE_FORMAT "\n",
             DESTRUCTIBLE_FORMAT_ARGS_BORROWED(&sv_vtable, sv));
-    SvREFCNT_inc((SV*) sv);
+    if (sv)
+        SvREFCNT_inc((SV*) sv);
     return sv;
 }
 
@@ -35,17 +36,22 @@ static void destroy_sv_ref(void* sv)
 {
     ASYNC_LOG_DEBUG("destroy_sv_ref: " DESTRUCTIBLE_FORMAT "\n",
             DESTRUCTIBLE_FORMAT_ARGS_BORROWED(&sv_vtable, sv));
-    SvREFCNT_dec((SV*) sv);
+    if (sv)
+        SvREFCNT_dec((SV*) sv);
 }
 
 static size_t get_refcount_sv(void* sv)
 {
+    assert(sv);
     return SvREFCNT((SV*) sv);
 }
 
 static const char* get_stringification_sv(void* sv)
 {
-    return (SvOK((SV*) sv)) ? SvPV_nolen((SV*) sv) : "<undef>";
+    assert(sv);
+    if (!SvOK((SV*) sv))
+        return "<undef>";
+    return SvPV_nolen((SV*) sv);
 }
 
 static
