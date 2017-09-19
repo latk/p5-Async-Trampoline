@@ -29,7 +29,7 @@ static void Async_Value_clear      (Async* self);
 auto Async::clear() -> void
 {
     ASYNC_LOG_DEBUG("clear() " ASYNC_FORMAT "\n",
-            ASYNC_FORMAT_ARGS(*this));
+            ASYNC_FORMAT_ARGS(this));
 
     switch (type) {
         case Async_Type::IS_UNINITIALIZED:
@@ -145,8 +145,8 @@ auto Async::set_from(Async&& other) -> void
 auto Async::operator=(Async& other) -> Async&
 {
     ASYNC_LOG_DEBUG("unify " ASYNC_FORMAT " with " ASYNC_FORMAT "\n",
-            ASYNC_FORMAT_ARGS(*this),
-            ASYNC_FORMAT_ARGS(other));
+            ASYNC_FORMAT_ARGS(this),
+            ASYNC_FORMAT_ARGS(&other));
 
     // as a special case, CANCEL holds no resources and can always be copied
     if (other.has_type(Async_Type::IS_CANCEL))
@@ -189,7 +189,7 @@ void Async::set_to_Ptr(
 
     ASYNC_LOG_DEBUG("init %p to Ptr: target=" ASYNC_FORMAT "\n",
             this,
-            ASYNC_FORMAT_ARGS(target.get()));
+            ASYNC_FORMAT_ARGS(target.decay()));
 
     type = Async_Type::IS_PTR;
     new (&as_ptr) AsyncRef { std::move(target) };
@@ -207,6 +207,10 @@ Async_Ptr_clear(
 {
     assert(self);
     assert(self->type == Async_Type::IS_PTR);
+
+    ASYNC_LOG_DEBUG("clear %p of Ptr: target=" ASYNC_FORMAT "\n",
+            self,
+            ASYNC_FORMAT_ARGS(self->as_ptr.decay()));
 
     self->type = Async_Type::IS_UNINITIALIZED;
     self->as_ptr.~AsyncRef();
@@ -249,8 +253,9 @@ void Async::set_to_Thunk(
         dependency.fold();
 
     ASYNC_LOG_DEBUG(
-            "init %p to Thunk: callback=??? dependency=%p\n",
-            this, dependency.decay());
+            "init %p to Thunk: callback=??? dependency=" ASYNC_FORMAT "\n",
+            this,
+            ASYNC_FORMAT_ARGS(dependency.decay()));
 
     type = Async_Type::IS_THUNK;
     new (&as_thunk) Async_Thunk{
@@ -265,6 +270,11 @@ Async_Thunk_clear(
 {
     assert(self);
     assert(self->type == Async_Type::IS_THUNK);
+
+    ASYNC_LOG_DEBUG(
+            "clear %p of Thunk: callback=??? dependency=" ASYNC_FORMAT "\n",
+            self,
+            ASYNC_FORMAT_ARGS(self->as_thunk.dependency.decay()));
 
     self->type = Async_Type::IS_UNINITIALIZED;
     self->as_thunk.~Async_Thunk();
@@ -291,8 +301,8 @@ static void set_to_Binary(
             "right=" ASYNC_FORMAT "\n",
             &self,
             Async_Type_name(type),
-            ASYNC_FORMAT_ARGS(left.get()),
-            ASYNC_FORMAT_ARGS(right.get()));
+            ASYNC_FORMAT_ARGS(left.decay()),
+            ASYNC_FORMAT_ARGS(right.decay()));
 
     self.type = type;
     new (&self.as_binary) Async_Pair {
@@ -306,6 +316,15 @@ static void Async_Binary_clear(
         Async_Type  type)
 {
     assert(self.type == type);
+
+    ASYNC_LOG_DEBUG(
+            "clear %p from Binary %s: "
+            "left=" ASYNC_FORMAT " "
+            "right=" ASYNC_FORMAT "\n",
+            &self,
+            Async_Type_name(self.type),
+            ASYNC_FORMAT_ARGS(self.as_binary.left.decay()),
+            ASYNC_FORMAT_ARGS(self.as_binary.right.decay()));
 
     self.type = Async_Type::IS_UNINITIALIZED;
     self.as_binary.~Async_Pair();
@@ -331,8 +350,8 @@ void Async::set_to_Flow(Async_Flow flow)
             "decision=%s "
             "flow=%s\n",
             this,
-            ASYNC_FORMAT_ARGS(flow.left.get()),
-            ASYNC_FORMAT_ARGS(flow.right.get()),
+            ASYNC_FORMAT_ARGS(flow.left.decay()),
+            ASYNC_FORMAT_ARGS(flow.right.decay()),
             Async_Type_name(flow.flow_type),
             (flow.direction == Async_Flow::THEN)        ? "THEN"
                 : (flow.direction == Async_Flow::OR)    ? "OR"
@@ -345,6 +364,20 @@ void Async::set_to_Flow(Async_Flow flow)
 static void Async_Flow_clear(Async& self)
 {
     assert(self.type == Async_Type::IS_FLOW);
+
+    ASYNC_LOG_DEBUG(
+            "clear %p from Flow: "
+            "left=" ASYNC_FORMAT " "
+            "right=" ASYNC_FORMAT " "
+            "decision=%s "
+            "flow=%s\n",
+            &self,
+            ASYNC_FORMAT_ARGS(self.as_flow.left.decay()),
+            ASYNC_FORMAT_ARGS(self.as_flow.right.decay()),
+            Async_Type_name(self.as_flow.flow_type),
+            (self.as_flow.direction == Async_Flow::THEN)        ? "THEN"
+                : (self.as_flow.direction == Async_Flow::OR)    ? "OR"
+                : "(unknown)");
 
     self.type = Async_Type::IS_UNINITIALIZED;
     self.as_flow.~Async_Flow();
@@ -367,6 +400,8 @@ Async_Cancel_clear(
 {
     assert(self);
     assert(self->type == Async_Type::IS_CANCEL);
+
+    ASYNC_LOG_DEBUG("clear %p of Cancel\n", self);
 
     self->type = Async_Type::IS_UNINITIALIZED;
 }
@@ -394,6 +429,10 @@ Async_Error_clear(
     assert(self);
     assert(self->type == Async_Type::IS_ERROR);
 
+    ASYNC_LOG_DEBUG("clear %p from Error: " DESTRUCTIBLE_FORMAT "\n",
+            self,
+            DESTRUCTIBLE_FORMAT_ARGS(self->as_error));
+
     self->type = Async_Type::IS_UNINITIALIZED;
     self->as_error.~Destructible();
 }
@@ -408,11 +447,11 @@ void Async::set_to_Value(
     if (ASYNC_TRAMPOLINE_DEBUG)
     {
         ASYNC_LOG_DEBUG(
-                "init Async %p to Values: values = %p size = %zu\n",
+                "init %p to Values: values=%p size=%zu\n",
                 this, values.data.get(), values.size);
         for (auto val : values)
         {
-            ASYNC_LOG_DEBUG("  - values " DESTRUCTIBLE_FORMAT "\n",
+            ASYNC_LOG_DEBUG("  - value " DESTRUCTIBLE_FORMAT "\n",
                     DESTRUCTIBLE_FORMAT_ARGS_BORROWED(values.vtable, val));
         }
     }
@@ -428,7 +467,21 @@ Async_Value_clear(
     assert(self);
     assert(self->type == Async_Type::IS_VALUE);
 
-    self->type = Async_Type::IS_UNINITIALIZED;
+    if (ASYNC_TRAMPOLINE_DEBUG)
+    {
+        ASYNC_LOG_DEBUG(
+                "clear %p from Values: values=%p size=%zu\n",
+                self, self->as_value.data.get(), self->as_value.size);
 
+        for (auto val : self->as_value)
+        {
+            ASYNC_LOG_DEBUG("  - value " DESTRUCTIBLE_FORMAT "\n",
+                    DESTRUCTIBLE_FORMAT_ARGS_BORROWED(
+                        self->as_value.vtable,
+                        val));
+        }
+    }
+
+    self->type = Async_Type::IS_UNINITIALIZED;
     self->as_value.~DestructibleTuple();
 }

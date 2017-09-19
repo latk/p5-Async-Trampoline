@@ -315,7 +315,7 @@ Async::run_until_completion()
         if (!result.has_category(Async_Type::CATEGORY_COMPLETE))
         {
             croak(  "run_until_completion() did not complete " ASYNC_FORMAT,
-                    ASYNC_FORMAT_ARGS(result));
+                    ASYNC_FORMAT_ARGS(&result));
         }
         else if (result.has_type(Async_Type::IS_CANCEL))
         {
@@ -328,7 +328,7 @@ Async::run_until_completion()
         else if (result.has_type(Async_Type::IS_VALUE))
         {
             ASYNC_LOG_DEBUG("returning to Perl: " ASYNC_FORMAT "\n",
-                    ASYNC_FORMAT_ARGS(result));
+                    ASYNC_FORMAT_ARGS(&result));
 
             DestructibleTuple& values = result.as_value;
             XSprePUSH;  // to fix weird XS+PPCODE argument handling
@@ -559,7 +559,7 @@ Async::to_string()
     CODE:
     {
         RETVAL = newSVpvf(ASYNC_FORMAT,
-                ASYNC_FORMAT_ARGS(*THIS));
+                ASYNC_FORMAT_ARGS(THIS));
     }
     OUTPUT: RETVAL
     CLEANUP:

@@ -24,11 +24,11 @@ static inline void _async_log_debug_ignoreall(Args&&...) { }
 #endif /* ifndef ASYNC_TRAMPOLINE_DEBUG */
 
 #define ASYNC_FORMAT "<Async %p %s ref=%zu blocks=%zu>"
-#define ASYNC_FORMAT_ARGS(a)                                                \
-    &(a),                                                                   \
-    Async_Type_name((a).type),                                              \
-    (a).refcount, \
-    (a).blocked.size()
+#define ASYNC_FORMAT_ARGS(aptr)                                          \
+    (aptr),                                                                 \
+    ((aptr) ? Async_Type_name((aptr)->type) : "(NULL)"),                    \
+    ((aptr) ? (aptr)->refcount : 0),                                        \
+    ((aptr) ? (aptr)->blocked.size() : 0)
 
 enum class Async_Type
 {

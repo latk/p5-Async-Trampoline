@@ -100,7 +100,7 @@ void Async_Trampoline_Scheduler::Impl::enqueue(AsyncRef async)
     LOG_DEBUG("enqueueing %p into " SCHEDULER_RUNNABLE_QUEUE_FORMAT ": " ASYNC_FORMAT "\n",
             async.decay(),
             SCHEDULER_RUNNABLE_QUEUE_FORMAT_ARGS(*this),
-            ASYNC_FORMAT_ARGS(async.get()));
+            ASYNC_FORMAT_ARGS(async.decay()));
 
     if (runnable_enqueued.find(async.decay()) != runnable_enqueued.end())
     {
@@ -122,8 +122,8 @@ void Async_Trampoline_Scheduler::Impl::block_on(
 {
     LOG_DEBUG(
         "dependency of " ASYNC_FORMAT " on " ASYNC_FORMAT "\n",
-        ASYNC_FORMAT_ARGS(blocked_async.get()),
-        ASYNC_FORMAT_ARGS(dependency_async));
+        ASYNC_FORMAT_ARGS(blocked_async.decay()),
+        ASYNC_FORMAT_ARGS(&dependency_async));
 
     dependency_async.add_blocked(std::move(blocked_async));
 }
