@@ -9,7 +9,11 @@
 
 #ifndef ASYNC_TRAMPOLINE_DEBUG
 #define ASYNC_TRAMPOLINE_DEBUG 0
-#define ASYNC_LOG_DEBUG(...) do {} while (0)
+#define ASYNC_LOG_DEBUG(...) do {                                           \
+    if (0) _async_log_debug_ignoreall(__VA_ARGS__);                         \
+} while (0)
+template<class... Args>
+static inline void _async_log_debug_ignoreall(Args&&...) { }
 #else
 #include <cstdio>
 #define ASYNC_TRAMPOLINE_DEBUG 1
