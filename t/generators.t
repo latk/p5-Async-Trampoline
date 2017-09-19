@@ -45,7 +45,8 @@ subtest q(launch sequence) => sub {
         })
         ->gen_collect;
     is_deeply $async->run_until_completion,
-        [10, 9, 8, 7, 6, 5, 4, 'ignition', 2, 1, 'liftoff'];
+        [10, 9, 8, 7, 6, 5, 4, 'ignition', 2, 1, 'liftoff'],
+        q(got launch sequence);
 };
 
 sub repeat_gen {
@@ -62,7 +63,9 @@ sub repeat_gen {
 
 subtest q(repetition) => sub {
     my $async = repeat_gen(count_down_generator(3))->gen_collect;
-    is_deeply $async->run_until_completion, [3, 3, 2, 2, 1, 1, 0, 0];
+    is_deeply $async->run_until_completion,
+        [3, 3, 2, 2, 1, 1, 0, 0],
+        q(got repeated elements);
 };
 
 describe q(gen_foreach()) => sub {
@@ -72,7 +75,8 @@ describe q(gen_foreach()) => sub {
 
         my @result = $async->run_until_completion;
 
-        is_deeply \@result, [];
+        is_deeply \@result, [],
+            q(foreach returned empty value);
     };
 
     it q(is executed once if generator contains one value) => sub {
@@ -87,8 +91,8 @@ describe q(gen_foreach()) => sub {
 
         my @result = $async->run_until_completion;
 
-        is_deeply \@seen, [["foo"]];
-        is_deeply \@result, [];
+        is_deeply \@seen, [["foo"]], q(foreach saw all values);
+        is_deeply \@result, [], q(foreach returned empty values);
     };
 };
 
