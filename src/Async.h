@@ -111,7 +111,7 @@ public:
 
     auto fold() -> AsyncRef&;
 
-    auto ptr_with_ownership() -> Async*
+    auto ptr_with_ownership() && -> Async*
     { return std::exchange(ptr, nullptr); }
 };
 
