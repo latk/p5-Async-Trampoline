@@ -5,7 +5,7 @@ use utf8;
 package Async::Trampoline::Scheduler;
 
 ## no critic
-our $VERSION = '0.000001';
+our $VERSION = '0.001000';
 $VERSION = eval $VERSION;
 ## use critic
 
