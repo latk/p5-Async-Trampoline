@@ -12,7 +12,7 @@ my %module_build_args = (
   },
   "c_source" => "src",
   "config" => {
-    "cxxflags" => "-std=c++14"
+    "cxxflags" => "-std=c++11"
   },
   "configure_requires" => {
     "ExtUtils::CBuilder" => "0.280226",

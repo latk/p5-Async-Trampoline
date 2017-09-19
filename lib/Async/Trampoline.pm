@@ -609,7 +609,7 @@ E.g. in C<< $x->complete_then($y) >>, C<$y> may be evaluated first
 if some other Async depends on C<$y> as well.
 
 This module is not pure-Perl.
-You will need a C++14 compiler to install it.
+You will need a C++11 compiler to install it.
 
 =head1 SUPPORT
 

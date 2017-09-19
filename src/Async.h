@@ -111,8 +111,12 @@ public:
 
     auto fold() -> AsyncRef&;
 
-    auto ptr_with_ownership() && -> Async*
-    { return std::exchange(ptr, nullptr); }
+    auto ptr_with_ownership() && noexcept -> Async*
+    {
+        Async* retval = nullptr;
+        noexcept_swap(retval, ptr);
+        return retval;
+    }
 };
 
 struct Async_RawThunk

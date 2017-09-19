@@ -194,35 +194,38 @@ static AsyncRef make_async_yield(AsyncRef&& continuation, AsyncRef&& value)
 
 static AsyncRef make_gen_foreach(AsyncRef&& gen, InvokeCV&& body)
 {
-    auto gen_foreach_thunk =
-    [body = std::move(body)]
-    (DestructibleTuple const& data)
+    struct GenForeachThunk
     {
-        AsyncRef continuation {};
-        if (data.size > 0)
-            continuation = async_from_sv((SV*) data.at(0));
+        InvokeCV body;
 
-        if (!continuation)
-            throw std::runtime_error(
-                    "generator Async must have Async as first value");
+        auto operator()(DestructibleTuple const& data) -> AsyncRef
+        {
+            AsyncRef continuation {};
+            if (data.size > 0)
+                continuation = async_from_sv((SV*) data.at(0));
 
-        DestructibleTuple body_args = destructible_tuple_tail(1, data);
+            if (!continuation)
+                throw std::runtime_error(
+                        "generator Async must have Async as first value");
 
-        AsyncRef ok_then = Async::alloc();
+            DestructibleTuple body_args = destructible_tuple_tail(1, data);
 
-        AsyncRef next_foreach = make_gen_foreach(
-                std::move(continuation), InvokeCV { body });
+            AsyncRef ok_then = Async::alloc();
 
-        AsyncRef ok = body(body_args);
+            AsyncRef next_foreach = make_gen_foreach(
+                    std::move(continuation), InvokeCV { body });
 
-        ok_then->set_to_Flow({
-                ok, next_foreach,
-                Async_Type::IS_VALUE,
-                Async_Flow::THEN,
-        });
+            AsyncRef ok = body(body_args);
 
-        return ok_then;
-    };
+            ok_then->set_to_Flow({
+                    ok, next_foreach,
+                    Async_Type::IS_VALUE,
+                    Async_Flow::THEN,
+            });
+
+            return ok_then;
+        }
+    } gen_foreach_thunk { std::move(body) };
 
     AsyncRef await = Async::alloc();
     await->set_to_Thunk(gen_foreach_thunk, std::move(gen));
@@ -242,27 +245,30 @@ static AsyncRef make_gen_foreach(AsyncRef&& gen, InvokeCV&& body)
 
 static AsyncRef make_gen_map(AsyncRef&& gen, InvokeCV&& body)
 {
-    auto gen_map_thunk =
-    [body = std::move(body)]
-    (DestructibleTuple const& data)
+    struct GenMapThunk
     {
-        AsyncRef continuation {};
-        if (data.size > 0)
-            continuation = async_from_sv((SV*) data.at(0));
+        InvokeCV body;
 
-        if (!continuation)
-            throw std::runtime_error(
-                    "generator Async must have Async as first value");
+        auto operator()(DestructibleTuple const& data) -> AsyncRef
+        {
+            AsyncRef continuation {};
+            if (data.size > 0)
+                continuation = async_from_sv((SV*) data.at(0));
 
-        AsyncRef next_map = make_gen_map(
-                std::move(continuation), InvokeCV { body });
+            if (!continuation)
+                throw std::runtime_error(
+                        "generator Async must have Async as first value");
 
-        DestructibleTuple body_args = destructible_tuple_tail(1, data);
+            AsyncRef next_map = make_gen_map(
+                    std::move(continuation), InvokeCV { body });
 
-        AsyncRef result = body(body_args);
+            DestructibleTuple body_args = destructible_tuple_tail(1, data);
 
-        return make_async_yield(std::move(next_map), std::move(result));
-    };
+            AsyncRef result = body(body_args);
+
+            return make_async_yield(std::move(next_map), std::move(result));
+        }
+    } gen_map_thunk { std::move(body) };
 
     AsyncRef await = Async::alloc();
     await->set_to_Thunk(gen_map_thunk, std::move(gen));
