@@ -56,8 +56,13 @@ invoke_cv(CV* callback, DestructibleTuple const& args)
 
     if (ASYNC_TRAMPOLINE_DEBUG)
     {
+        #if PERL_VERSION >= 22
         SV* name_sv = cv_name(callback, NULL, 0);
         const char* name = SvPV_nolen(name_sv);
+        #else
+        char const* name = GvNAME(CvGV(callback));
+        #endif
+
         const char* file = CvFILE(callback);
         const COP* location = (const COP*) CvSTART(callback);
         int line = (location) ? CopLINE(location) : 0;
