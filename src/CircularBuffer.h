@@ -34,7 +34,7 @@ public:
         while (size())
             deq();
         if (m_storage)
-            delete m_storage;
+            delete[] reinterpret_cast<char*>(m_storage);
         m_size = 0;
         m_start = 0;
     }
