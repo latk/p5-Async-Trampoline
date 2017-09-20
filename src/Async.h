@@ -30,6 +30,12 @@ static inline void _async_log_debug_ignoreall(Args&&...) { }
     ((aptr) ? (aptr)->refcount : 0),                                        \
     ((aptr) ? (aptr)->blocked.size() : 0)
 
+#ifdef __cpp_ref_qualifiers
+#define MAYBE_MOVEREF &&
+#else
+#define MAYBE_MOVEREF
+#endif
+
 enum class Async_Type
 {
     IS_UNINITIALIZED,
@@ -111,7 +117,7 @@ public:
 
     auto fold() -> AsyncRef&;
 
-    auto ptr_with_ownership() && noexcept -> Async*
+    auto ptr_with_ownership() MAYBE_MOVEREF noexcept -> Async*
     {
         Async* retval = nullptr;
         noexcept_swap(retval, ptr);
