@@ -124,6 +124,10 @@ struct Async_RawThunk
     using Callback = std::function<AsyncRef(AsyncRef dependency)>;
     Callback    callback;
     AsyncRef    dependency;
+
+    Async_RawThunk(Async_RawThunk&&) = default;
+    ~Async_RawThunk() = default;
+    auto operator=(Async_RawThunk&&) -> Async_RawThunk& = default;
 };
 
 struct Async_Thunk
@@ -131,12 +135,20 @@ struct Async_Thunk
     using Callback = std::function<AsyncRef(DestructibleTuple const& data)>;
     Callback    callback;
     AsyncRef    dependency;
+
+    Async_Thunk(Async_Thunk&&) = default;
+    ~Async_Thunk() = default;
+    auto operator=(Async_Thunk&&) -> Async_Thunk& = default;
 };
 
 struct Async_Pair
 {
     AsyncRef left;
     AsyncRef right;
+
+    Async_Pair(Async_Pair&&) = default;
+    ~Async_Pair() = default;
+    auto operator=(Async_Pair&&) -> Async_Pair& = default;
 };
 
 struct Async_Flow
@@ -145,6 +157,10 @@ struct Async_Flow
     AsyncRef right;
     Async_Type flow_type;
     enum Direction { THEN, OR } direction;
+
+    Async_Flow(Async_Flow&&) = default;
+    ~Async_Flow() = default;
+    auto operator=(Async_Flow&&) -> Async_Flow& = default;
 };
 
 struct Async_Uninitialized {};
