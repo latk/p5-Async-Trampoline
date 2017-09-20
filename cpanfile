@@ -1,3 +1,4 @@
+requires "perl" => "v5.14.0";
 
 on 'build' => sub {
   requires "Module::Build" => "0.28";
