@@ -4,59 +4,75 @@ Async::Trampoline - Trampolining functions with async/await syntax
 
 # SYNOPSIS
 
+Loading
+
     use Async::Trampoline qw(
         await
         async async_value async_error async_cancel
         async_yield
     );
 
-    # creating asyncs
+    use Async::Trampoline ':all';
+
+Creating Asyncs
+
     $async = async_value 1, 2, 3;
     $async = async_error "oops";
     $async = async_cancel;
     $async = async { ...; return $new_async };
 
-    # running asyncs
+Running Asyncs
+
     @result = $async->run_until_completion;
 
-    # combining asyncs
+Combining Asyncs
+
     $async = $other_async->await(sub {
         my (@values) = @_;
         # ...
         return $new_async;
     });
+
     $async = await [$x, $y] => sub {
         my (@x_and_y_values) = @_;
         # ...
         return $new_async;
     };
+
     $async = $x->complete_then($y);
     $async = $x->resolved_or($y);
     $async = $x->resolved_then($y);
     $async = $x->value_or($y);
     $async = $x->value_then($y);
+
     $async = $x->concat($y);
 
-    # generators
+Generators
+
     $gen = async_yield async_value(1, 2, 3) => sub {
         # ...
         return $next_generator;
     };
+
     $gen = $gen->gen_map(sub {
         my (@values) = @_;
         # ...
         return $new_async;
     });
+
     $async = $gen->gen_foreach(sub {
         my (@values) = @_;
         return async_cancel if not @values;  # like "last" in Perl
         # ...
         return async_value;  # like "next" in Perl
     });
+
     $async = $gen->gen_collect;
 
-    # misc
+Misc. accessors
+
     $str = $async->to_string;
+
     $bool = $async->is_complete;
     $bool = $async->is_cancelled;
     $bool = $async->is_error;
