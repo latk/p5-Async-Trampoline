@@ -15,6 +15,7 @@ on 'configure' => sub {
 };
 
 on 'develop' => sub {
+  requires "Devel::PPPort" => "3.23";
   requires "Pod::Coverage::TrustPod" => "0";
   requires "Test::Perl::Critic" => "0";
   requires "Test::Pod" => "1.41";
