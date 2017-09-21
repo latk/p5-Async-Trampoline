@@ -11,9 +11,6 @@ my %module_build_args = (
     "Module::Build" => "0.28"
   },
   "c_source" => "src",
-  "config" => {
-    "cxxflags" => "-std=c++11"
-  },
   "configure_requires" => {
     "ExtUtils::CBuilder" => "0.280226",
     "Module::Build" => "0.28"
@@ -24,6 +21,7 @@ my %module_build_args = (
   ],
   "dist_name" => "Async-Trampoline",
   "dist_version" => "0.001000",
+  "extra_compiler_flags" => "-std=c++11",
   "extra_linker_flags" => "-lstdc++",
   "license" => "perl",
   "module_name" => "Async::Trampoline",
