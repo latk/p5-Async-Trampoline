@@ -11,6 +11,8 @@ extern "C" {
 
 #include "Async.h"
 
+#define UNUSED(x) static_cast<void>(x)
+
 static void* copy_sv_ref(void* sv);
 static void destroy_sv_ref(void* sv);
 static size_t get_refcount_sv(void* sv);
@@ -86,7 +88,7 @@ invoke_cv(CV* callback, DestructibleTuple const& args)
     PUSHMARK(SP);
     if (args.size)
     {
-        EXTEND(SP, args.size);
+        EXTEND(SP, static_cast<ssize_t>(args.size));
         for (auto arg : args)
         {
             ASYNC_LOG_DEBUG("  - arg %p refs=%zu content=%s\n",
@@ -104,6 +106,7 @@ invoke_cv(CV* callback, DestructibleTuple const& args)
     }
 
     int count = call_sv((SV*) callback, G_SCALAR|G_EVAL);
+    UNUSED(count);
 
     SPAGAIN;
 
@@ -338,7 +341,7 @@ Async::run_until_completion()
 
             DestructibleTuple& values = result.as_value;
             XSprePUSH;  // to fix weird XS+PPCODE argument handling
-            EXTEND(SP, values.size);
+            EXTEND(SP, static_cast<ssize_t>(values.size));
             for (auto value : values)
             {
                 ASYNC_LOG_DEBUG("  - " DESTRUCTIBLE_FORMAT "\n",
@@ -434,8 +437,8 @@ async_value(...)
         CXX_TRY
     CODE:
     {
-        DestructibleTuple values{&sv_vtable, (size_t) items};
-        for (size_t i = 0; i < items; i++)
+        DestructibleTuple values{&sv_vtable, static_cast<size_t>(items)};
+        for (ssize_t i = 0; i < items; i++)
             values.set(i, Destructible { newSVsv(ST(i)), &sv_vtable });
 
         AsyncRef self = Async::alloc();
@@ -623,3 +626,10 @@ Async::gen_foreach(body)
     OUTPUT: RETVAL
     CLEANUP:
         CXX_CATCH
+
+    /*  The boot function is declared as extern "C" twice.
+     *   Boot is always the last function so that it will see all xsubs
+     */
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wduplicate-decl-specifier"
+#endif

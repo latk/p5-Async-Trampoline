@@ -24,11 +24,11 @@ static inline void _async_log_debug_ignoreall(Args&&...) { }
 #endif /* ifndef ASYNC_TRAMPOLINE_DEBUG */
 
 #define ASYNC_FORMAT "<Async %p %s ref=%zu blocks=%zu>"
-#define ASYNC_FORMAT_ARGS(aptr)                                          \
+#define ASYNC_FORMAT_ARGS(aptr)                                             \
     (aptr),                                                                 \
-    ((aptr) ? Async_Type_name((aptr)->type) : "(NULL)"),                    \
-    ((aptr) ? (aptr)->refcount : 0),                                        \
-    ((aptr) ? (aptr)->blocked.size() : 0)
+    Async_maybe_type_name(aptr),                                            \
+    Async_maybe_refcount(aptr),                                             \
+    Async_maybe_blocked_size(aptr)
 
 #ifdef __cpp_ref_qualifiers
 #define MAYBE_MOVEREF &&
@@ -238,6 +238,17 @@ inline auto AsyncRef::clear() -> void {
         ptr->unref();
     ptr = nullptr;
 }
+
+// functions used with debugging output
+static inline auto Async_maybe_type_name(Async const* ptr) noexcept -> char const*
+{ return ptr ? Async_Type_name(ptr->type) : "(NULL)"; }
+
+static inline auto Async_maybe_refcount(Async const* ptr) noexcept -> size_t
+{ return ptr ? ptr->refcount : 0; }
+
+static inline auto Async_maybe_blocked_size(Async const* ptr) noexcept -> size_t
+{ return ptr ? ptr->blocked.size() : 0; }
+
 
 // Evaluation: Async_X_evaluate()
 // Incomplete -> Complete
