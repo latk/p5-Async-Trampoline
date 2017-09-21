@@ -5,6 +5,7 @@ on 'build' => sub {
 };
 
 on 'test' => sub {
+  requires "Test::Exception" => "0";
   requires "Test::More" => "0";
   requires "Test::Output" => "0";
 };

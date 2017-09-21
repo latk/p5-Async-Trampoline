@@ -30,6 +30,7 @@ my %module_build_args = (
     "perl" => "5.014"
   },
   "test_requires" => {
+    "Test::Exception" => 0,
     "Test::More" => 0,
     "Test::Output" => 0
   }
@@ -38,6 +39,7 @@ my %module_build_args = (
 
 my %fallback_build_requires = (
   "Module::Build" => "0.28",
+  "Test::Exception" => 0,
   "Test::More" => 0,
   "Test::Output" => 0
 );
