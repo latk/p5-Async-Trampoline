@@ -1,0 +1,10 @@
+{{$NEXT}}
+
+    - better compiler compatibility down to GCC 4.7
+    - don't break compilation if CXXFLAGS env var is set
+    - specify Test::Exception as test dependency
+    - other distribution quality improvements
+
+0.001000  2017-09-19
+
+    - initial release
