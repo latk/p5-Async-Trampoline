@@ -27,7 +27,7 @@ my %module_build_args = (
   "module_name" => "Async::Trampoline",
   "recursive_test_files" => 1,
   "requires" => {
-    "perl" => "v5.14.0"
+    "perl" => "5.014"
   },
   "test_requires" => {
     "Test::More" => 0,
