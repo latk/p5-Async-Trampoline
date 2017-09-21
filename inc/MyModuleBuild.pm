@@ -26,10 +26,14 @@ sub _construct {
     my ($class, @args) = @_;
 
     if ($ENV{AUTOMATED_TESTING}) {
-        warn "env $_=$ENV{$_}\n"for qw/
-            CXXFLAGS
-            PERL_MB_OPT
-        /;
+        for my $var (qw( CXXFLAGS PERL_MB_OPT )) {
+            if (exists $ENV{$var}) {
+                warn sprintf "env %s=%s\n", $var, $ENV{$var} // q();
+            }
+            else {
+                warn "env $var not set\n";
+            }
+        }
     }
 
     return $class->SUPER::_construct(@args);
