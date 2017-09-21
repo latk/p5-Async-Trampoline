@@ -23,6 +23,10 @@ env:
     - AUTHOR_TESTING=1
     # Perl 5.26 won't load modules from inc/ otherwise
     - PERL_USE_UNSAFE_INC=1
+    # Moar warnings!!1
+    # (Though spews a lot of nonsense for the Perl headers as well.)
+    # This also tests that setting CXXFLAGS does not break the compilation
+    - CXXFLAGS="-Wall -Wextra"
   matrix:
     - CC=gcc-7 CXX=g++-7
 before_install:
