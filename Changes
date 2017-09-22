@@ -1,4 +1,4 @@
-{{$NEXT}}
+0.001001  2017-09-22 14:16:56+00:00 UTC
 
     - better compiler compatibility down to GCC 4.7
     - don't break compilation if CXXFLAGS env var is set

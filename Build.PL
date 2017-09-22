@@ -20,7 +20,7 @@ my %module_build_args = (
     "Lukas Atkinson <amon\@cpan.org>"
   ],
   "dist_name" => "Async-Trampoline",
-  "dist_version" => "0.001000",
+  "dist_version" => "0.001001",
   "extra_compiler_flags" => "-std=c++11",
   "extra_linker_flags" => "-lstdc++",
   "license" => "perl",
