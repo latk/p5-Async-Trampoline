@@ -41,7 +41,7 @@ script:
   # Check that built dist works
   - '(cd $builddir && perl Build.PL && ./Build && prove -br t)'
   # Check that repo itself works
-  - 'oerl Build.PL && ./Build && ./Build test'
+  - 'perl Build.PL && ./Build && ./Build test'
 sudo: false
 matrix:
   include:
