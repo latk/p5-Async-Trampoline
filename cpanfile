@@ -10,6 +10,13 @@ on 'test' => sub {
   requires "Test::Output" => "0";
 };
 
+on 'test' => sub {
+  suggests "Pod::Coverage::TrustPod" => "0";
+  suggests "Test::Perl::Critic" => "0";
+  suggests "Test::Pod" => "0";
+  suggests "Test::Pod::Coverage" => "0";
+};
+
 on 'configure' => sub {
   requires "ExtUtils::CBuilder" => "0.280226";
   requires "Module::Build" => "0.28";

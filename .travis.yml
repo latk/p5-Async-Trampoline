@@ -36,7 +36,7 @@ before_install:
   - "perlbrew exec --with $stableperl 'dzil authordeps | grep -v ^inc:: | cpanm --quiet --notest'"
   - "perlbrew exec --with $stableperl dzil build --in $builddir"
 install:
-  - '(cd $builddir && cpanm --quiet --notest --installdeps --with-configure .)'
+  - '(cd $builddir && cpanm --quiet --notest --installdeps --with-configure --with-suggests .)'
 script:
   # Check that built dist works
   - '(cd $builddir && perl Build.PL && ./Build && prove -br t)'
