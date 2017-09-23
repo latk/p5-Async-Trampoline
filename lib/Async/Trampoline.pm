@@ -6,7 +6,7 @@ package Async::Trampoline;
 
 BEGIN {
     ## no critic
-    our $VERSION = '0.001001';
+    our $VERSION = '0.001001';  # VERSION
     $VERSION = eval $VERSION;
     ## use critic
 }
