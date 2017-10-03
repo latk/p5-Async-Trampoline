@@ -58,9 +58,9 @@ on 'develop' => sub {
   requires "Dist::Zilla::Plugin::TestRelease" => "0";
   requires "Dist::Zilla::Plugin::UploadToCPAN" => "0";
   requires "Pod::Coverage::TrustPod" => "0";
+  requires "Pod::Parser" => "0";
   requires "Software::License::Perl_5" => "0";
   requires "Test::Perl::Critic" => "0";
   requires "Test::Pod" => "1.41";
   requires "Test::Pod::Coverage" => "1.08";
-  requires "Test::Pod::Snippets" => "0";
 };

@@ -8,3 +8,4 @@
 /MYMETA.yml
 *.o
 /cover_db/
+/t/podsnippets-*.t

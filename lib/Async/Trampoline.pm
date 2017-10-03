@@ -61,6 +61,8 @@ Async::Trampoline - Trampolining functions with async/await syntax
 =for test
     use Test::Output;
     use feature 'say';
+    my $async;
+    my $new_async;
 
 Loading
 
@@ -71,7 +73,6 @@ Loading
     );
 
     use Async::Trampoline ':all';
-
 
 Creating Asyncs
 
@@ -84,6 +85,7 @@ Running Asyncs
 
 =for test
     $async = async_value 1, 2, 3;
+    my @result;
 
     @result = $async->run_until_completion;
 
@@ -92,11 +94,11 @@ Running Asyncs
 
 Combining Asyncs
 
-=for test
-    $other_async = async { async_value "other async" };
-    $new_async = async_value "new async";
-    $x = async_value "x";
-    $y = async_value "y";
+=for test {
+    my $other_async = async { async_value "other async" };
+    my $new_async = async_value "new async";
+    my $x = async_value "x";
+    my $y = async_value "y";
 
     $async = $other_async->await(sub {
         my (@values) = @_;
@@ -118,7 +120,13 @@ Combining Asyncs
 
     $async = $x->concat($y);
 
+=for test }
+
 Generators
+
+=for test {
+    my $gen;
+    my $next_generator;
 
     $gen = async_yield async_value(1, 2, 3) => sub {
         # ...
@@ -140,7 +148,13 @@ Generators
 
     $async = $gen->gen_collect;
 
+=for test }
+
 Misc. accessors
+
+=for test {
+    my $str;
+    my $bool;
 
     $str = $async->to_string;
 
@@ -148,6 +162,8 @@ Misc. accessors
     $bool = $async->is_cancelled;
     $bool = $async->is_error;
     $bool = $async->is_value;
+
+=for test }
 
 =head1 DESCRIPTION
 
@@ -174,6 +190,8 @@ The module is written in C++ to keep runtime overhead minimal.
 
 Synchronous/imperative:
 
+=for test {
+
     my @items;
 
     my $i = 5;
@@ -184,7 +202,11 @@ Synchronous/imperative:
 =for test
     is "@items", "5 4 3 2 1", q(Synchronous/imperative);
 
+=for test }
+
 Synchronous/recursive:
+
+=for test {
 
     sub loop {
         my ($items, $i) = @_;
@@ -198,7 +220,11 @@ Synchronous/recursive:
 =for test
     is "@$items", "5 4 3 2 1", q(Synchronous/recursive);
 
+=for test }
+
 Async/recursive:
+
+=for test {
 
     sub loop_async {
         my ($items, $i) = @_;
@@ -212,7 +238,11 @@ Async/recursive:
 =for test
     is "@$items", "5 4 3 2 1", q(Async/recursive);
 
+=for test }
+
 Async/generators:
+
+=for test {
 
     sub loop_gen {
         my ($i) = @_;
@@ -226,6 +256,8 @@ Async/generators:
 
 =for test
     is "@$items", "5 4 3 2 1", q(Async/generators);
+
+=for test }
 
 =head1 ASYNC STATES
 
@@ -277,6 +309,10 @@ To access the values of an Async, you can C<await> it.
 
 =head1 CREATING ASYNCS
 
+=for test
+    my @values;
+    my $error;
+
 =head2 async
 
     $async = async { ... };
@@ -314,8 +350,8 @@ Use this to abort an Async without using an error.
 =head2 await
 
 =for test
-    $dependency = async { async_value 1,2, 3 };
-    @dependencies = (async_value(1), async_value(), async_value(3));
+    my $dependency = async { async_value 1,2, 3 };
+    my @dependencies = (async_value(1), async_value(), async_value(3));
 
     $async = $dependency->await(sub {
         my (@result) = @_;
@@ -348,9 +384,9 @@ It does not directly return the values.
 =head2 value_or
 
 =for test
-    $first_async = async { async_value };
-    $alternative_async = async { async_value };
-    $second_async = $alternative_async;
+    my $first_async = async { async_value };
+    my $alternative_async = async { async_value };
+    my $second_async = $alternative_async;
 
     $async = $first_async->resolved_or($alternative_async);
     $async = $first_async->value_or($alternative_async);
@@ -416,6 +452,9 @@ B<Example>:
 
 =head1 GENERATORS
 
+=for test
+    my $generator;
+
 A B<Generator> describes an Async
 that has a continuation Async as its first value.
 This continuation can be awaited to get the next continuation + value.
@@ -452,9 +491,10 @@ B<Example:> transforming a stream:
         return async_value $i;
     });
 
-=for test
-    $result = $countdown_gen->gen_collect->run_until_completion;
+=for test {
+    my $result = $countdown_gen->gen_collect->run_until_completion;
     is "@$result", "10 9 8 7 6 5 4 ignition 2 1 liftoff", q(countdown map);
+}
 
 B<Example:> consuming a stream:
 
@@ -464,11 +504,19 @@ B<Example:> consuming a stream:
         return async_value;  # request next item
     });
 
-=for test
+=begin test
+
+{
+    my $result;
+
     stdout_is { $result = $finished_async->run_until_completion }
         (join q() => map "$_\n" => qw( 10 9 8 7 6 5 4 ignition 2 1 liftoff )),
         q(countdown stdout);
+
     is $result, undef, q(countdown result);
+}
+
+=end test
 
 B<Example>: repeating each element:
 
@@ -484,15 +532,24 @@ B<Example>: repeating each element:
         });
     }
 
-=for test
-    $result = repeat_gen(count_down_generator(2))
+=begin test
+
+{
+    my $result = repeat_gen(count_down_generator(2))
         ->gen_collect
         ->run_until_completion;
+
     is "@$result", "2 2 1 1 0 0", q(repetition);
+}
+
+=end test
 
 =head2 async_yield
 
-    $generator = async_yield $async => sub { return $next_generator }
+=for test
+    my $next_generator;
+
+    $generator = async_yield $async => sub { return $next_generator };
 
 Yield a value from a generator function.
 The C<$async> contains the value or state you want to yield.
@@ -567,6 +624,9 @@ you usually want to C<await()> the Async instead.
 
 =head2 to_string
 
+=for test
+    my $str;
+
     $str = $async->to_string;
     $str = "$async";
 
@@ -581,6 +641,9 @@ Low-level debugging stringification that displays Async identity and type.
 =head2 is_error
 
 =head2 is_value
+
+=for test
+    my $bool;
 
     $bool = $async->is_complete;
     $bool = $async->is_cancelled;

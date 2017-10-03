@@ -375,7 +375,7 @@ However, many use cases are better served by more specialized functions.
 
 ## async\_yield
 
-    $generator = async_yield $async => sub { return $next_generator }
+    $generator = async_yield $async => sub { return $next_generator };
 
 Yield a value from a generator function.
 The `$async` contains the value or state you want to yield.
