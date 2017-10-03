@@ -45,21 +45,21 @@ sub run_parser_test($name, $source, $result, %args) {
 run_parser_test q(multiplication),
     'foo * 7 / baz' => 10.5,
     method => 'parse_expr',
-    ast => [DIV => [MUL => \'foo', 7], \'baz'],
+    ast => [DIV => [MUL => [VAR => 'foo'], 7], [VAR => 'baz']],
     env => { foo => 3, baz => 2 };
 
 run_parser_test q(addition),
     'a + b * (c - -3)' => 7,
     method => 'parse_expr',
-    ast => [ADD => \'a', [MUL => \'b', [SUB => \'c', -3]]],
+    ast => [ADD => [VAR => 'a'], [MUL => [VAR => 'b'], [SUB => [VAR => 'c'], -3]]],
     env => { a => 1, b => 3, c => -1 };
 
 run_parser_test q(calls),
     'x * f y * g (5 + b)' => 30,
     method => 'parse_expr',
     ast => [MUL =>
-        [MUL => \'x', [CALL => \'f', \'y']],
-        [CALL => \'g', [ADD => 5, \'b']],
+        [MUL => [VAR => 'x'], [CALL => [VAR => 'f'], [VAR => 'y']]],
+        [CALL => [VAR => 'g'], [ADD => 5, [VAR => 'b']]],
     ],
     env => {
         x => 2, y => 3, b => 2,
@@ -70,9 +70,9 @@ run_parser_test q(calls),
 run_parser_test q(statements),
     'x; y - z; f a' => 3,
     ast => [DO =>
-        \'x',
-        [SUB => \'y', \'z'],
-        [CALL => \'f', \'a'],
+        [VAR => 'x'],
+        [SUB => [VAR => 'y'], [VAR => 'z']],
+        [CALL => [VAR => 'f'], [VAR => 'a']],
     ],
     env => {
         x => 13, y => 8, z => 7, a => 9,
@@ -82,8 +82,8 @@ run_parser_test q(statements),
 run_parser_test q(let-statement),
     'let x = 4; x * 3' => 12,
     ast => [DO =>
-        [LET => \'x', 4],
-        [MUL => \'x', 3],
+        [LET => 'x', 4],
+        [MUL => [VAR => 'x'], 3],
     ];
 
 done_testing;
@@ -280,7 +280,7 @@ BEGIN {
     sub parse_statement($self) {
         return $self->do_cached("<statement>" => sub {
             my $let = $self->production(
-                qw[ kw:let :: $<variable> op:= $<expr> ],
+                qw[ kw:let :: $<ident> op:= $<expr> ],
                 sub ($var, $expr) { [LET => $var, $expr ] },
             );
 
@@ -300,11 +300,18 @@ BEGIN {
         return $self->do_cached("kw:$kw" => match => qr/\s*\b\Q$kw\E\b\s*/);
     }
 
+    sub parse_ident($self) {
+        return $self->do_cached("<ident>" => sub {
+            return $self
+                ->match(qr/\s*\b(?<var>(?!\d)\w+)\b\s*/, qw(var));
+        });
+    }
+
     sub parse_variable($self) {
         return $self->do_cached("<variable>" => sub {
             return $self
-                ->match(qr/\s*\b(?<var>(?!\d)\w+)\b\s*/, qw(var))
-                ->make_value(sub ($var) { \"$var" });
+                ->parse_ident
+                ->make_value(sub ($name) { [ VAR => $name ] });
         });
     }
 
@@ -390,13 +397,13 @@ BEGIN {
             return async_value $ast;
         }
 
-        if (ref $ast eq 'SCALAR') {
-            return async_value $self->{$$ast};
-        }
-
         my ($name, @args) = @$ast;
         my $method = "eval_" . lc $name;
         return async { $self->$method(@args) };
+    }
+
+    sub eval_var($self, $name) {
+        return async_value $self->{$name};
     }
 
     sub eval_mul($self, $lhs, $rhs) {
@@ -437,7 +444,7 @@ BEGIN {
 
     sub eval_let($self, $var, $expr) {
         return $self->eval($expr)->await(sub ($val) {
-            $self->{$$var} = $val;
+            $self->{$var} = $val;
             return async_value $val;
         });
     }
