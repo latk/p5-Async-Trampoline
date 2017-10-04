@@ -19,11 +19,13 @@ BEGIN {
         unless eval { require namespace::autoclean; 1 };
 }
 
+use Async::Trampoline::Example::Interpreter;
+
 use experimental 'signatures';
 ## no critic (SubroutinePrototypes)
 
 sub run_parser_test($name, $source, $result, %args) {
-    my $env = delete $args{env};
+    my $env = delete $args{env} // {};
     my $ast = delete $args{ast};
     my $method = delete $args{method} // 'parse_toplevel';
     if (my @keys = sort keys %args) {
@@ -32,8 +34,9 @@ sub run_parser_test($name, $source, $result, %args) {
 
     subtest $name => sub {
         my $async_ast = Parser->new(\$source)->$method->get_result;
+        my $interpreter = Async::Trampoline::Example::Interpreter->new(%$env);
         my $async_result = await $async_ast => sub ($ast) {
-            return Interpreter->new(%$env)->eval($ast);
+            return $interpreter->eval($ast);
         };
         is_deeply scalar $async_result->run_until_completion, $result;
 
@@ -45,13 +48,19 @@ sub run_parser_test($name, $source, $result, %args) {
 run_parser_test q(multiplication),
     'foo * 7 / baz' => 10.5,
     method => 'parse_expr',
-    ast => [DIV => [MUL => [VAR => 'foo'], 7], [VAR => 'baz']],
+    ast => [DIV => [MUL => [VAR => 'foo'], [LIT => 7]], [VAR => 'baz']],
     env => { foo => 3, baz => 2 };
 
 run_parser_test q(addition),
     'a + b * (c - -3)' => 7,
     method => 'parse_expr',
-    ast => [ADD => [VAR => 'a'], [MUL => [VAR => 'b'], [SUB => [VAR => 'c'], -3]]],
+    ast => [ADD =>
+        [VAR => 'a'],
+        [MUL =>
+            [VAR => 'b'],
+            [SUB => [VAR => 'c'], [LIT => -3]],
+        ],
+    ],
     env => { a => 1, b => 3, c => -1 };
 
 run_parser_test q(calls),
@@ -59,7 +68,7 @@ run_parser_test q(calls),
     method => 'parse_expr',
     ast => [MUL =>
         [MUL => [VAR => 'x'], [CALL => [VAR => 'f'], [VAR => 'y']]],
-        [CALL => [VAR => 'g'], [ADD => 5, [VAR => 'b']]],
+        [CALL => [VAR => 'g'], [ADD => [LIT => 5], [VAR => 'b']]],
     ],
     env => {
         x => 2, y => 3, b => 2,
@@ -82,8 +91,8 @@ run_parser_test q(statements),
 run_parser_test q(let-statement),
     'let x = 4; x * 3' => 12,
     ast => [DO =>
-        [LET => 'x', 4],
-        [MUL => [VAR => 'x'], 3],
+        [LET => 'x', [LIT => 4]],
+        [MUL => [VAR => 'x'], [LIT => 3]],
     ];
 
 done_testing;
@@ -311,13 +320,16 @@ BEGIN {
         return $self->do_cached("<variable>" => sub {
             return $self
                 ->parse_ident
-                ->make_value(sub ($name) { [ VAR => $name ] });
+                ->make_value(sub ($name) { [VAR => $name] });
         });
     }
 
     sub parse_literal($self) {
-        return $self->do_cached("<literal>" => match =>
-            qr/\s*(?<value>-?[0-9]+)\b\s*/, qw(value));
+        return $self->do_cached("<literal>" => sub {
+            return $self
+                ->match(qr/\s*(?<value>-?[0-9]+)\b\s*/, qw(value))
+                ->make_value(sub ($value) { [LIT => $value] });
+        });
     }
 
     sub parse_atom($self) {
@@ -378,74 +390,5 @@ BEGIN {
         );
 
         return ($add | $sub)->do(sub { shift->parse_term_rest }) | $self;
-    }
-}
-
-BEGIN {
-    package Interpreter;
-
-    use namespace::autoclean;
-    use Async::Trampoline ':all';
-    use Carp;
-
-    sub new($class, %env) {
-        return bless \%env => $class;
-    }
-
-    sub eval($self, $ast) {
-        if (not ref $ast) {
-            return async_value $ast;
-        }
-
-        my ($name, @args) = @$ast;
-        my $method = "eval_" . lc $name;
-        return async { $self->$method(@args) };
-    }
-
-    sub eval_var($self, $name) {
-        return async_value $self->{$name};
-    }
-
-    sub eval_mul($self, $lhs, $rhs) {
-        return await [$self->eval($lhs), $self->eval($rhs)] => sub ($x, $y) {
-            return async_value $x * $y;
-        };
-    }
-
-    sub eval_div($self, $lhs, $rhs) {
-        return await [$self->eval($lhs), $self->eval($rhs)] => sub ($x, $y) {
-            return async_value $x / $y;
-        };
-    }
-
-    sub eval_add($self, $lhs, $rhs) {
-        return await [$self->eval($lhs), $self->eval($rhs)] => sub ($x, $y) {
-            return async_value $x + $y;
-        };
-    }
-
-    sub eval_sub($self, $lhs, $rhs) {
-        return await [$self->eval($lhs), $self->eval($rhs)] => sub ($x, $y) {
-            return async_value $x - $y;
-        };
-    }
-
-    sub eval_call($self, $caller, $arg) {
-        return await [$self->eval($caller), $self->eval($arg)] => sub ($f, $arg) {
-            return async_value $f->($arg);
-        };
-    }
-
-    sub eval_do($self, $s, @statements) {
-        my $next = $self->eval($s);
-        return $next if not @statements;
-        return $next->value_then(async { $self->eval_do(@statements) });
-    }
-
-    sub eval_let($self, $var, $expr) {
-        return $self->eval($expr)->await(sub ($val) {
-            $self->{$var} = $val;
-            return async_value $val;
-        });
     }
 }

@@ -54,6 +54,13 @@ use Test::More;
 done_testing;
 TEST_TEMPLATE
 
+use constant MODULE_TEMPLATE => fix_line_directives(<<'MODULE_TEMPLATE');
+{{code}}
+
+#line fixup
+1;
+MODULE_TEMPLATE
+
 sub process_file {
     my ($self, $file) = @_;
 
@@ -69,8 +76,11 @@ sub process_file {
         $self->log("  generating file $output");
 
         my $code = $outputs{$output};
+
         $code = expand_line_directives($code);
-        $code = fill_template(TEST_TEMPLATE, code => $code);
+
+        my $template = guess_template($output);
+        $code = fill_template($template, code => $code);
 
         push @in_memory_files, Dist::Zilla::File::InMemory->new({
             name => $output,
@@ -85,6 +95,13 @@ sub fill_template {
     my ($template, %args) = @_;
     $template =~ s/\{\{\s*(\w+)\s*\}\}/$args{$1}/g;
     return $template;
+}
+
+sub guess_template {
+    my ($output_name) = @_;
+    return TEST_TEMPLATE    if $output_name =~ /\.t$/;
+    return MODULE_TEMPLATE  if $output_name =~ /\.pm$/;
+    die "Can't guess template for file $output_name";
 }
 
 sub derive_output_filename {
@@ -207,30 +224,29 @@ sub command {
 
     if ($command eq 'for') {
 
-        if ($paragraph =~ s/^\h* test\b \h*//x) {
+        if ($paragraph =~ s/^\h* output\b \h*//x) {
 
             return $parser->{ecfp_state}[-1] = 'ignore'
                 if $paragraph =~ /^ ignore \s*$/x;
+
+            return $parser->output_handle->print("#@@ output $1\n")
+                if $paragraph =~ /^ (begin \h+ \S+ | end | default | (?=\w)\S+) \s*$/x;
 
             $parser->{ecfp_state}[-1] = 'test';
             print_paragraph($parser, $paragraph, $line_no);
             return;
         }
 
-        elsif ($paragraph =~ /^\h* output \h+ (begin \h+ \S+ | end | default | \S+) \s*$/x) {
-            $parser->output_handle->print("#@@ output $1\n");
-        }
-
     }
     elsif ($command eq 'begin') {
-        return unless $paragraph =~ s/^\h* test \h*//x;
+        return unless $paragraph =~ s/^\h* output \h*//x;
 
         push @{ $parser->{ecfp_state} },'insidebegin';
         print_paragraph($parser, $paragraph, $line_no);
         return;
     }
     elsif ($command eq 'end') {
-        return unless $paragraph =~ s/^\h* test \h*//x;
+        return unless $paragraph =~ s/^\h* output \h*//x;
 
         pop @{ $parser->{ecfp_state} };
         return;

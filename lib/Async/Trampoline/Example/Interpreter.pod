@@ -1,0 +1,561 @@
+=encoding UTF-8
+
+=head1 NAME
+
+Async::Trampoline::Example::Interpreter - simple interpreter with Async::Trampoline
+
+=head1 INTRODUCTION
+
+This example shows how L<Async::Trampoline> can be used
+to implement a simple interpreter.
+
+The interpreter receives an AST (abstract syntax tree) describing the program.
+Here, we model this AST using S-Expressions:
+a list where the first element is the type of node
+and the remaining elements are arguments.
+For example, the following AST would describe the program C<x + 7>:
+
+=for output ignore
+
+    [ADD => [VAR => 'x'], [LIT => 7]]
+
+=for output
+
+We can evaluate such expressions recursively:
+First, evaluate the sub-expressions C<< [VAR => 'x'] >> and C<< [LIT => 7] >>,
+then evaluate the outer expression with these values.
+
+Async::Trampoline allows us to eliminate this recursion
+if we asyncify these methods.
+So the evaluation functions will receive the AST arguments as parameters,
+and return an Async that will produce the value.
+Something like this:
+
+=for output ignore
+
+    sub eval_add($self, $left, $right) {
+        return await [$self->eval($left), $self->eval($right)],
+        sub ($left_value, $right_value) {
+            return async_value $left_value + $right_value;
+        };
+    }
+
+=for output
+
+We will implement the following opcodes:
+
+=over
+
+=item VAR
+
+C<< [VAR => $name] >>
+– look up the value of a variable.
+
+=item LIT
+
+C<< [LIT => $value] >>
+– a literal value.
+
+=item MUL
+
+=item DIV
+
+=item ADD
+
+=item SUB
+
+C<< [MUL => $left_expr, $right_expr] >>
+– binary operators for mathematics.
+
+=item CALL
+
+C<< [CALL => $function_expr, @args_expr] >>
+– call a function.
+
+=item DO
+
+C<< [DO => @statements_expr] >>
+– evaluate all statements and discards all values except the last.
+
+=item LET
+
+C<< [LET => $name, $expr] >>
+– assign a variable.
+
+=back
+
+=head1 CODE
+
+=begin output
+
+    use Test::Exception;
+
+    use FindBin;
+    use lib "$FindBin::Bin/lib";
+    use Async::Trampoline::Describe qw( describe it );
+
+    BEGIN {
+        BAIL_OUT("Tests require Perl v5.20 or better")
+            unless $^V ge v5.20;
+        BAIL_OUT("Tests require namespace::autoclean")
+            unless eval { require namespace::autoclean };
+    }
+
+    use experimental 'signatures';
+    use Async::Trampoline::Example::Interpreter
+
+=end output
+
+=for output begin t/lib/Async/Trampoline/Example/Interpreter.pm
+
+We start with a normal module preamble.
+To simplify the code we also activate the "signatures" feature,
+available from Perl 5.20 onwards.
+This allows us to write
+C<sub foo($x, $y) { ... }>
+instead of
+C<sub foo { my ($x, $y) = @_; ... }>.
+
+    package Async::Trampoline::Example::Interpreter;
+    use strict;
+    use warnings;
+    use experimental 'signatures';
+
+We need to import L<Async::Trampoline>.
+To prevent those imported functions from being called as methods on our class,
+we can also use L<namespace::autoclean> – but that is optional.
+
+    use namespace::autoclean;
+    use Async::Trampoline ':all';
+
+=head2 new
+
+The interpreter needs to keep track of the value of assigned variables
+(the "environment").
+For this simple interpreter
+it is enough to use a blessed hash ref as our object, no Moo(se) needed.
+
+    sub new($class, %env) {
+        return bless \%env => $class;
+    }
+
+=head2 eval
+
+The C<eval()> method takes an AST tree and dispatches it to the correct method.
+So we simply translate the AST
+C<< [FOO => $x, $y, $z] >>
+to the call
+C<< $self->eval_foo($x, $y, $z) >>.
+
+However, the C<eval_foo()> method may call C<eval()> recursively.
+To break that recursion, we delay the C<eval_foo()> call
+by wrapping it inside an C<async { ... }> block.
+
+    sub eval($self, $ast) {
+        my ($name, @args) = @$ast;
+        my $method = "eval_" . lc $name;
+        return async { $self->$method(@args) };
+    }
+
+B<See:>
+L<async in Async::Trampoline|Async::Trampoline/async>.
+
+=head2 eval_var
+
+This method looks up a variable name in the environment,
+i.e. the hash ref of our object.
+
+    sub eval_var($self, $name) {
+        die qq(No variable "$name" exists in current scope)
+            unless exists $self->{$name};
+
+        return async_value $self->{$name};
+    }
+
+Instead of C<die()>, we could have used C<return async_error>.
+The only difference is at which line the error is located.
+
+B<See:>
+L<async_error in Async::Trampoline|Async::Trampoline/async_error>,
+L<async_value in Async::Trampoline|Async::Trampoline/async_value>.
+
+=for output begin default
+
+=for output
+    describe q(eval_var()) => sub {
+
+B<Test:> It gets the variable value:
+
+=for output
+    it q(gets the variable value) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new(
+        x => 42,
+    );
+
+    my $async = $interpreter->eval_var('x');
+    my $result = $async->run_until_completion;
+
+    is $result, 42, q(got value of 'x');
+
+=for output };
+
+B<Test:> It dies if the variable does not exist:
+
+=for output
+    it q(dies if the variable does not exist) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new(
+        foo => 17,
+    );
+
+    throws_ok { $interpreter->eval_var('bar')->run_until_completion }
+        qr/^No variable "bar" exists in current scope /;
+
+=for output };
+
+=for output };  # end describe
+
+=for output end
+
+=head2 eval_lit
+
+This method just returns a literal value.
+
+    sub eval_lit($self, $value) {
+        return async_value $value;
+    }
+
+B<See:>
+L<async_value in Async::Trampoline|Async::Trampoline/async_value>.
+
+=for output begin default
+
+=for output
+    describe q(eval_lit()) => sub {
+
+B<Test:> It returns the literal value:
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new();
+
+    my $async = $interpreter->eval_lit(123);
+    my $result = $async->run_until_completion;
+
+    is $result, 123, q(got literal value back);
+
+=for output };
+
+=for output end
+
+=head2 eval_mul
+
+Multiply the left and right argument.
+We first have to C<eval()> the arguments.
+Since that produces Asyncs, we have to C<await()> them.
+The C<await()> function then executes our callback
+with the values of the arguments,
+so that we can create an Async with the result.
+
+Note that C<await()> can take an array ref of Asyncs as first argument.
+The value lists are then flattended, just like Perl works.
+So
+C<< await [produce_asyncs()] => \&callback >>
+is the Async version of
+C<< callback(produce_values()) >>.
+
+    sub eval_mul($self, $lhs, $rhs) {
+        return await [$self->eval($lhs), $self->eval($rhs)] => sub ($x, $y) {
+            return async_value $x * $y;
+        };
+    }
+
+B<See:>
+L<await in Async::Trampoline|Async::Trampoline/await>,
+L<async_value in Async::Trampoline|Async::Trampoline/async_value>.
+
+B<Test:> It multiplies the arguments:
+
+=for output begin default
+
+=for output
+    describe q(eval_mul()) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new(
+        x => 7,
+    );
+
+    my $async = $interpreter->eval_mul([VAR => 'x'], [LIT => 2]);
+    my $result = $async->run_until_completion;
+
+    is $result, 14, q(got expected result);
+
+=for output };
+
+=for output end
+
+=head2 eval_div
+
+Divides the arguments.
+Has the same structure as L<C<eval_mul()>|/eval_mul>.
+
+For simplicity, we do not explicitly check for division by zero.
+Perl will do that anyway.
+
+    sub eval_div($self, $lhs, $rhs) {
+        return await [$self->eval($lhs), $self->eval($rhs)] => sub ($x, $y) {
+            return async_value $x / $y;
+        };
+    }
+
+B<Test:> It divides the arguments:
+
+=for output begin default
+
+=for output
+    describe q(eval_div()) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new(
+        x => 12,
+    );
+
+    my $async = $interpreter->eval_div([VAR => 'x'], [LIT => 3]);
+    my $result = $async->run_until_completion;
+
+    is $result, 4, q(got expected result);
+
+=for output };
+
+=for output end
+
+=head2 eval_add
+
+Adds the arguments.
+Has the same structure as L<C<eval_mul()>|/eval_mul>.
+
+    sub eval_add($self, $lhs, $rhs) {
+        return await [$self->eval($lhs), $self->eval($rhs)] => sub ($x, $y) {
+            return async_value $x + $y;
+        };
+    }
+
+B<Test:> It adds the arguments:
+
+=for output begin default
+
+=for output
+    describe q(eval_add()) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new(
+        x => 3,
+    );
+
+    my $async = $interpreter->eval_add([LIT => 11], [VAR => 'x']);
+    my $result = $async->run_until_completion;
+
+    is $result, 14, q(got expected result);
+
+=for output };
+
+=for output end
+
+=head2 eval_sub
+
+Subtracts the arguments.
+Has the same structure as L<C<eval_mul()>|/eval_mul>.
+
+    sub eval_sub($self, $lhs, $rhs) {
+        return await [$self->eval($lhs), $self->eval($rhs)] => sub ($x, $y) {
+            return async_value $x - $y;
+        };
+    }
+
+B<Test:> It subtracts the arguments:
+
+=for output begin default
+
+=for output
+    describe q(eval_sub()) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new(
+        x => 7,
+    );
+
+    my $async = $interpreter->eval_sub([LIT => 11], [VAR => 'x']);
+    my $result = $async->run_until_completion;
+
+    is $result, 4, q(got expected result);
+
+=for output };
+
+=for output end
+
+=head2 eval_call
+
+Calls a function with the provided arguments.
+Has the same structure as L<C<eval_mul()>|/eval_mul>.
+
+Because the number of arguments is not fixed,
+we create a list of Asyncs via
+C<< map { $self->eval($_) } @args >>.
+
+    sub eval_call($self, $target, @args) {
+        return await [$self->eval($target), map { $self->eval($_) } @args],
+            sub ($f, @values) {
+                return async_value $f->(@values);
+            };
+    }
+
+B<Test:> It invokes a function:
+
+=for output begin default
+
+=for output
+    describe q(eval_call()) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new(
+        f => sub ($x) { 2 * $x + 1 },
+    );
+
+    my $async = $interpreter->eval_call([VAR => 'f'], [LIT => 4]);
+    my $result = $async->run_until_completion;
+
+    is $result, 9, q(got expected result);
+
+=for output };
+
+=for output end
+
+=head2 eval_do
+
+Evaluates all statements, but discards their values except for the last.
+We assume that there is at least one statement and evaluate it.
+
+If there are no further statements,
+we return the Async of the first (and only) statement.
+
+Otherwise, we force the Async of the first statement to be evaluated,
+discard its value, and recurse to evaluate the remaining statements.
+
+To avoid direct recursion
+we wrap the self-call into an C<async { ... }> block,
+a technique also used in the L<C<eval()>|/eval> method.
+
+The C<value_then()> method lets us chain two Asyncs.
+If the left Async produced a value that value is discarded,
+and then the right side Async evaluated.
+Errors are propagated, so if the left Async has an error,
+then the right Async is ignored.
+This means that C<value_then()> is the Async equivalent of a semicolon in Perl.
+
+Note that
+C<< $x->value_then($y) >>
+behaves the same as but is more efficient than
+C<< await $x => sub { $y } >>.
+
+    sub eval_do($self, $s, @statements) {
+        my $next = $self->eval($s);
+        return $next if not @statements;
+        return $next->value_then(async { $self->eval_do(@statements) });
+    }
+
+B<See:>
+L<value_then in Async::Trampoline|Async::Trampoline/value_then>,
+L<async in Async::Trampoline|Async::Trampoline/async>.
+
+B<Test:> It evaluates all statements:
+
+=for output begin default
+
+=for output
+    describe q(eval_do()) => sub {
+
+    my $was_called = 0;
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new(
+        check_call => sub { ++$was_called; return 42 },
+    );
+
+    my $async = $interpreter->eval_do(
+        [CALL => [VAR => 'check_call']],
+        [LIT => 17],
+    );
+    my $result = $async->run_until_completion;
+
+    is $result, 17, q(got result of last statement);
+    is $was_called, 1, q(previous statements were called);
+
+=for output };
+
+=for output end
+
+=head2 eval_let
+
+Assigns a variable, and returns the assigned value.
+
+Because we only need to C<await()> a single value,
+we can use the await-method here, instead of the await-function.
+The two are equivalent,
+except that the await-function can await multiple values at once.
+
+    sub eval_let($self, $var, $expr) {
+        return $self->eval($expr)->await(sub ($val) {
+            $self->{$var} = $val;
+            return async_value $val;
+        });
+    }
+
+B<See:>
+L<await in Async::Trampoline|Async::Trampoline/await>,
+L<async_value in Async::Trampoline|Async::Trampoline/async_value>.
+
+=for output begin default
+
+=for output
+    describe q(eval_let()) => sub {
+
+B<Test:> It assigns a variable:
+
+=for output
+    it q(assigns a variable) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new();
+
+    my $async = $interpreter->eval_let('newvar', [LIT => 8]);
+    my $result = $async->run_until_completion;
+
+    is $result, 8, q(got expected result);
+    is $interpreter->{newvar}, 8, q(variable was assigned);
+
+=for output };
+
+B<Test:> The assigned variable can be used in later statements:
+
+=for output
+    it q(variable can be used in later statements) => sub {
+
+    my $interpreter = Async::Trampoline::Example::Interpreter->new();
+
+    my $ast = [DO =>
+        [LET => 'foo', [LIT => 11]],
+        [MUL => [VAR => 'foo'], [LIT => 2]],
+    ];
+
+    my $async = $interpreter->eval($ast);
+    my $result = $async->run_until_completion;
+
+    is $result, 22, q(got expected result);
+
+=for output };
+
+
+=for output }; # end describe
+
+=for output end
+
+=for output end
+
+=head1 SEE ALSO
+
+L<Async::Trampoline>
+
+=cut
