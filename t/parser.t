@@ -13,10 +13,14 @@ use Test::More;
 use Test::Exception;
 
 BEGIN {
-    BAIL_OUT("Parser tests require Perl v5.20 or better")
+    plan skip_all => "Parser tests require Perl v5.20 or better"
         if $^V lt v5.20;
-    BAIL_OUT("Parser tests require namespace::autoclean")
+    plan skip_all => "Parser tests require namespace::autoclean"
         unless eval { require namespace::autoclean; 1 };
+    plan skip_all =>
+        "Parser tests require Async::Trampoline::Example::Interpreter, "
+        . "which is only provided by the Dist::Zilla-based build process"
+        unless eval { require Async::Trampoline::Example::Interpreter };
 }
 
 use Async::Trampoline::Example::Interpreter;

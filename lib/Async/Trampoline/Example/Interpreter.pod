@@ -95,9 +95,9 @@ C<< [LET => $name, $expr] >>
     use Async::Trampoline::Describe qw( describe it );
 
     BEGIN {
-        BAIL_OUT("Tests require Perl v5.20 or better")
+        plan skip_all => "Tests require Perl v5.20 or better"
             unless $^V ge v5.20;
-        BAIL_OUT("Tests require namespace::autoclean")
+        plan skip_all => "Tests require namespace::autoclean"
             unless eval { require namespace::autoclean };
     }
 
