@@ -105,6 +105,7 @@ sub configure {
         Test::Perl::Critic  0
         PodSyntaxTests      0
         PodCoverageTests    0
+        Test::Kwalitee::Extra 0
         CopyFilesFromBuild  0
         ReadmeAnyFromPod    0
         Git::CheckFor::CorrectBranch 0
@@ -180,6 +181,7 @@ sub configure {
         Test::Perl::Critic
         PodSyntaxTests
         PodCoverageTests
+        Test::Kwalitee::Extra
     ));
 
     ### Copy Generated Files ###
