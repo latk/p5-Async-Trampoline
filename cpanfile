@@ -53,7 +53,6 @@ on 'develop' => sub {
   requires "Dist::Zilla::Plugin::PruneCruft" => "0";
   requires "Dist::Zilla::Plugin::Readme" => "0";
   requires "Dist::Zilla::Plugin::ReadmeAnyFromPod" => "0";
-  requires "Dist::Zilla::Plugin::Run::BeforeBuild" => "0";
   requires "Dist::Zilla::Plugin::Test::Perl::Critic" => "0";
   requires "Dist::Zilla::Plugin::TestRelease" => "0";
   requires "Dist::Zilla::Plugin::UploadToCPAN" => "0";

@@ -133,6 +133,12 @@ sub configure {
             (exclude => [ @exclude_author_deps ]) x!! @exclude_author_deps }],
     );
 
+    ### Update Version ###
+
+    $self->add_plugins(
+        ['=inc::UpdateVersion' => { dir => ['lib'] }],
+    );
+
     ### Gather Files ###
 
     my @exclude_file;
