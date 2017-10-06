@@ -106,6 +106,7 @@ sub configure {
         PodSyntaxTests      0
         PodCoverageTests    0
         Test::Kwalitee::Extra 0
+        RunExtraTests       0
         CopyFilesFromBuild  0
         ReadmeAnyFromPod    0
         Git::CheckFor::CorrectBranch 0
@@ -182,6 +183,7 @@ sub configure {
         PodSyntaxTests
         PodCoverageTests
         Test::Kwalitee::Extra
+        RunExtraTests
     ));
 
     ### Copy Generated Files ###

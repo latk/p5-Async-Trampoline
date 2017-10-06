@@ -38,7 +38,7 @@ install:
   - '(cd $builddir && cpanm --quiet --notest --installdeps --with-configure --with-suggests .)'
 script:
   # Check that built dist works
-  - '(cd $builddir && perl Build.PL && ./Build && prove -br t)'
+  - '(cd $builddir && perl Build.PL && ./Build && prove -br t xt)'
   # Check that repo itself works
   - 'perl Build.PL && ./Build && ./Build test'
 sudo: false
