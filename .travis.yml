@@ -31,8 +31,9 @@ env:
 before_install:
   - perlbrew list
   - echo $stableperl
-  - "perlbrew exec --with $stableperl cpanm --quiet --notest Dist::Zilla"
-  - "perlbrew exec --with $stableperl 'dzil authordeps | grep -v ^inc:: | cpanm --quiet --notest'"
+  # dzil authordeps is unreliable when deps are added by bundled plugins
+  # -> resolve authordeps from cpanfile
+  - "perlbrew exec --with $stableperl cpanm --quiet --notest --installdeps --with-develop ."
   - "perlbrew exec --with $stableperl dzil build --in $builddir"
 install:
   - '(cd $builddir && cpanm --quiet --notest --installdeps --with-configure --with-suggests .)'
