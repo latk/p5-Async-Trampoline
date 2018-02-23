@@ -15,7 +15,7 @@ env:
   global:
     - builddir=./build-CI
     # try to parse the "perlbrew list" output to get latest perl version
-    - stableperl="$(perlbrew list | grep -o '(.*)' | sort | tail -1 | tr -d '()')"
+    - stableperl="$(perlbrew list | grep -o '([0-9.]*)' | sort | tail -1 | tr -d '()')"
     - RELEASE_TESTING=1
     - AUTOMATED_TESTING=1
     - EXTENDED_TESTING=1
